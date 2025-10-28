@@ -1,0 +1,35 @@
+program server;
+{$APPTYPE GUI}
+
+{$R *.dres}
+
+uses
+  Vcl.Forms,
+  Web.WebReq,
+  IdHTTPWebBrokerBridge,
+  FireDAC.DApt,
+  View.Principal in 'src\View\View.Principal.pas' {frmPrincipal},
+  Api.ServerMethods in 'src\Api\Api.ServerMethods.pas' {ServerMethods1: TDataModule},
+  Api.WebModule in 'src\Api\Api.WebModule.pas' {WebModule1: TWebModule},
+  Infra.Connection in 'src\Infra\Connection\Infra.Connection.pas' {DMConnection: TDataModule},
+  Services.PessoaService in 'src\Services\Services.PessoaService.pas',
+  Services.Interfaces in 'src\Services\Services.Interfaces.pas',
+  Infra.DAO.PessoaDAO in 'src\Infra\DAO\Infra.DAO.PessoaDAO.pas',
+  Infra.DAO.EnderecoDAO in 'src\Infra\DAO\Infra.DAO.EnderecoDAO.pas',
+  Infra.Repositories.EnderecoRepository in 'src\Infra\Repositories\Infra.Repositories.EnderecoRepository.pas',
+  Infra.Repositories.PessoaRepository in 'src\Infra\Repositories\Infra.Repositories.PessoaRepository.pas',
+  Services.EnderecoService in 'src\Services\Services.EnderecoService.pas',
+  Services.ServiceRegistry in 'src\Services\Services.ServiceRegistry.pas',
+  Domain.Entities.Pessoa in 'src\Domain\Entities\Domain.Entities.Pessoa.pas',
+  Domain.Entities.Endereco in 'src\Domain\Entities\Domain.Entities.Endereco.pas';
+
+{$R *.res}
+
+begin
+  if WebRequestHandler <> nil then
+    WebRequestHandler.WebModuleClass := WebModuleClass;
+  Application.Initialize;
+  Application.CreateForm(TDMConnection, DMConnection);
+  Application.CreateForm(TfrmPrincipal, frmPrincipal);
+  Application.Run;
+end.

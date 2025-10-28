@@ -1,0 +1,261 @@
+unit Infra.Api.PessoaApi;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, System.Generics.Collections, System.JSON,
+  REST.Json, System.NetEncoding, System.Net.URLClient, System.Net.HttpClient,
+  Common.DTOs.PessoaDTO, System.Net.Mime;
+
+type
+  TPessoaApi = class
+  private
+    FBaseUrl : string;
+    FHttp : THTTPClient;
+
+    function BuildUrl(const AMethod: string; const AParams: array of string): string;
+    function ExtractResultJson(const ARawJson: string): string;
+    class function EncodeStrParam(const AText: string): string; static;
+    class procedure RaiseIfErrorJson(const AText: string); static;
+  public
+    constructor Create(const ABaseUrl: string);
+    destructor Destroy; override;
+
+    function Listar(const APagina, ATamanho: Integer): TObjectList<TPessoaDTO>;
+    function ObterPorId(const AIdPessoa: Int64): TPessoaDTO;
+    function Criar(const APessoaDto: TPessoaDTO): Int64;
+    function Atualizar(const APessoaDto: TPessoaDTO): Boolean;
+    function Remover(const AIdPessoa: Int64): Boolean;
+    function Contar: Integer;
+    function ImportarCSV(const ACsvConteudo: string; const ATamanhoLote: Integer): Integer;
+    function ImportarCSV_Stream(const AFileName: string; const ATamanhoLote: Integer): Integer;
+
+    //assincrono no server
+    procedure DispararViaCEP;
+    function StatusViaCEP: string;
+  end;
+
+implementation
+
+{ TPessoaApi }
+
+function TPessoaApi.Atualizar(const APessoaDto: TPessoaDTO): Boolean;
+var
+  LBody, LUrl, LRaw, LValor: string;
+begin
+  LBody := TJson.ObjectToJsonString(APessoaDto);
+  LUrl := BuildUrl('Pessoa_Update', [EncodeStrParam(LBody)]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+
+  Result := SameText(LValor, 'true');
+end;
+
+function TPessoaApi.BuildUrl(const AMethod: string;
+  const AParams: array of string): string;
+var
+  I: Integer;
+begin
+  Result := FBaseUrl + '/datasnap/rest/TServerMethods1/' + AMethod;
+  for I := Low(AParams) to High(AParams) do
+    Result := Result + '/' + TNetEncoding.URL.Encode(AParams[I]);
+
+  if Length(AParams) = 0 then
+    Result := Result + '/';
+end;
+
+function TPessoaApi.Contar: Integer;
+var
+  LUrl, LRaw, LValor: string;
+begin
+  LUrl := BuildUrl('Pessoa_Count', []);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+  Result := StrToIntDef(LValor, 0);
+end;
+
+constructor TPessoaApi.Create(const ABaseUrl: string);
+begin
+  inherited Create;
+  FBaseUrl := ABaseUrl.TrimRight(['/']);
+  FHttp := THTTPClient.Create;
+  FHttp.ConnectionTimeout := 30000;
+  FHttp.ResponseTimeout   := 30000;
+end;
+
+function TPessoaApi.Criar(const APessoaDto: TPessoaDTO): Int64;
+var
+  LBody, LUrl, LRaw, LValor: string;
+begin
+  LBody := TJson.ObjectToJsonString(APessoaDto);
+  LUrl := BuildUrl('Pessoa_Create', [EncodeStrParam(LBody)]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+
+  Result := StrToInt64Def(LValor, 0);
+end;
+
+destructor TPessoaApi.Destroy;
+begin
+  FHttp.Free;
+  inherited;
+end;
+
+procedure TPessoaApi.DispararViaCEP;
+var
+  LUrl: string;
+begin
+  LUrl := BuildUrl('ViaCEP_Disparar', []);
+  FHttp.Get(LUrl);
+end;
+
+class function TPessoaApi.EncodeStrParam(const AText: string): string;
+begin
+  Result := TNetEncoding.URL.Encode(AText);
+end;
+
+function TPessoaApi.ExtractResultJson(const ARawJson: string): string;
+var
+  LObj : TJSONObject;
+  LArray : TJSONArray;
+  LValue : TJSONValue;
+begin
+  Result := '';
+  LObj := TJSONObject.ParseJSONValue(ARawJson) as TJSONObject;
+  try
+    if (LObj <> nil) and LObj.TryGetValue<TJSONArray>('result', LArray) then
+    begin
+      if LArray.Count > 0 then
+      begin
+        LValue := LArray.Items[0];
+        if LValue is TJSONString then
+          Result := TJSONString(LValue).Value
+        else
+          Result := LValue.ToJSON;
+      end;
+    end;
+  finally
+    LObj.Free;
+  end;
+end;
+
+function TPessoaApi.ImportarCSV(const ACsvConteudo: string;
+  const ATamanhoLote: Integer): Integer;
+var
+  LUrl, LRaw, LValor: string;
+begin
+  LUrl := BuildUrl('Pessoa_ImportarCSV',
+                  [EncodeStrParam(ACsvConteudo), ATamanhoLote.ToString]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+
+  Result := StrToIntDef(LValor, 0);
+end;
+
+function TPessoaApi.ImportarCSV_Stream(const AFileName: string;
+  const ATamanhoLote: Integer): Integer;
+var
+  LUrl : string;
+  LFS : TFileStream;
+  LResp : IHTTPResponse;
+  LRaw : string;
+  LValor : string;
+  LOldTimeout : Integer;
+begin
+  LUrl := FBaseUrl + '/upload/pessoa_csv/' + ATamanhoLote.ToString;
+
+  LFS := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
+  try
+    LFS.Position := 0;
+
+    LOldTimeout := FHttp.ResponseTimeout;
+    try
+      FHttp.ResponseTimeout := 300000;
+      LResp := FHttp.Post(LUrl, LFS); // sem headers manuais
+      LRaw := LResp.ContentAsString(TEncoding.UTF8);
+    finally
+      FHttp.ResponseTimeout := LOldTimeout;
+    end;
+  finally
+    LFS.Free;
+  end;
+
+  if (LResp.StatusCode >= 400) then
+    raise Exception.CreateFmt('HTTP %d %s: %s', [LResp.StatusCode, LResp.StatusText, LRaw]);
+
+  if Pos('"result"', LRaw) = 0 then
+    raise Exception.Create('Resposta inesperada do servidor: ' + LRaw);
+
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+  Result := StrToIntDef(LValor, 0);
+end;
+
+function TPessoaApi.Listar(const APagina,
+  ATamanho: Integer): TObjectList<TPessoaDTO>;
+var
+  LUrl, LRaw, LJsonLista: string;
+begin
+  LUrl := BuildUrl('Pessoa_List', [APagina.ToString, ATamanho.ToString]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LJsonLista := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LJsonLista);
+
+  if LJsonLista = '' then
+    Exit(TObjectList<TPessoaDTO>.Create(True));
+
+  Result := TJson.JsonToObject<TObjectList<TPessoaDTO>>(LJsonLista);
+end;
+
+function TPessoaApi.ObterPorId(const AIdPessoa: Int64): TPessoaDTO;
+var
+  LUrl, LRaw, LJsonItem: string;
+begin
+  LUrl := BuildUrl('Pessoa_Get', [AIdPessoa.ToString]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LJsonItem := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LJsonItem);
+
+  if (LJsonItem = '') or SameText(LJsonItem, 'null') then
+    Exit(nil);
+
+  Result := TJson.JsonToObject<TPessoaDTO>(LJsonItem);
+end;
+
+class procedure TPessoaApi.RaiseIfErrorJson(const AText: string);
+begin
+  if (AText <> '') and (AText.Length >= 9) and
+     AText.StartsWith('{"error":', True) then
+    raise Exception.Create(AText);
+end;
+
+function TPessoaApi.Remover(const AIdPessoa: Int64): Boolean;
+var
+  LUrl, LRaw, LValor: string;
+begin
+  LUrl := BuildUrl('Pessoa_Delete', [AIdPessoa.ToString]);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+
+  Result := SameText(LValor, 'true');
+end;
+
+function TPessoaApi.StatusViaCEP: string;
+var
+  LUrl, LRaw, LValor: string;
+begin
+  LUrl := BuildUrl('ViaCEP_Status', []);
+  LRaw := FHttp.Get(LUrl).ContentAsString(TEncoding.UTF8);
+  LValor := ExtractResultJson(LRaw);
+  RaiseIfErrorJson(LValor);
+  Result := LValor;
+end;
+
+end.

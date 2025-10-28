@@ -1,0 +1,314 @@
+unit Services.PessoaService;
+
+interface
+
+uses
+  System.SysUtils,
+  System.Generics.Collections,
+  System.Classes,
+  System.Threading,
+  System.JSON,
+  System.SyncObjs,
+  FireDAC.Comp.Client,
+  Common.DTOs.PessoaDTO,
+  Common.DTOs.EnderecoDTO,
+  Infra.Repositories.PessoaRepository,
+  Domain.Entities.Pessoa,
+  Services.Interfaces,
+  System.Net.HttpClient,
+  System.Net.URLClient,
+  Winapi.Windows;
+
+type
+  TPessoaService = class(TInterfacedObject, IPessoaService)
+  private
+    FConn: TFDConnection;
+    FPessoaRepo: IPessoaRepository;
+    FViaCepStatus: string;
+    FJobRunning: Integer;
+
+    function SepararCampos(const ALinha: string): TArray<string>;
+    function SomenteDigitos(const ATexto: string): string;
+    function LinhaEhCabecalho(const ALinha: string): Boolean;
+
+    procedure ProcessarLinhaCsv(
+      const ALinha: string;
+      var   AQtdeInseridos: Integer;
+      var   AQtdeNoLote: Integer;
+      const ATamanhoLote: Integer);
+
+  public
+    constructor Create(
+      AConn: TFDConnection;
+      const APessoaRepo: IPessoaRepository
+    );
+
+    function Listar(APagina, ATamanho: Integer): TObjectList<TPessoaDTO>;
+    function ObterPorId(AIdPessoa: Int64): TPessoaDTO;
+    function Criar(const APessoa: TPessoaDTO): Int64;
+    function ImportarCSV(const AConteudoCSV: string; ATamanhoLote: Integer): Integer;
+    function ContarPessoas: Integer;
+
+    procedure Atualizar(const APessoa: TPessoaDTO);
+    procedure Remover(AIdPessoa: Int64);
+  end;
+
+implementation
+
+uses
+  System.Types, System.StrUtils, System.DateUtils, Data.DB,
+  Infra.DAO.EnderecoDAO;
+
+{ TPessoaService }
+
+constructor TPessoaService.Create(
+  AConn: TFDConnection;
+  const APessoaRepo: IPessoaRepository);
+begin
+  inherited Create;
+  FConn        := AConn;
+  FPessoaRepo  := APessoaRepo;
+  FViaCepStatus:= 'idle';
+  FJobRunning  := 0;
+end;
+
+function TPessoaService.SomenteDigitos(const ATexto: string): string;
+var
+  LCh: Char;
+begin
+  Result := '';
+  for LCh in ATexto do
+    if CharInSet(LCh, ['0'..'9']) then
+      Result := Result + LCh;
+end;
+
+function TPessoaService.SepararCampos(const ALinha: string): TArray<string>;
+var
+  LPartes: TArray<string>;
+  I: Integer;
+begin
+  if ALinha.Contains(';') then
+    LPartes := ALinha.Split([';'])
+  else
+    LPartes := ALinha.Split([',']);
+
+  SetLength(Result, Length(LPartes));
+  for I := 0 to High(LPartes) do
+    Result[I] := LPartes[I].Trim([' ', '"', '''']);
+end;
+
+function TPessoaService.LinhaEhCabecalho(const ALinha: string): Boolean;
+var
+  S: string;
+begin
+  S := ALinha.ToLower;
+  Result :=
+    S.Contains('flnatureza') or
+    S.Contains('dsdocumento') or
+    S.Contains('nmprimeiro') or
+    S.Contains('nmsegundo') or
+    S.Contains('dtregistro') or
+    S.Contains('dscep');
+end;
+
+function TPessoaService.ContarPessoas: Integer;
+begin
+  Result := FPessoaRepo.Contar(FConn);
+end;
+
+function TPessoaService.Listar(APagina, ATamanho: Integer): TObjectList<TPessoaDTO>;
+var
+  Offset: Integer;
+  Pessoas: TObjectList<TPessoa>;
+  P: TPessoa;
+begin
+  if APagina < 0 then APagina := 0;
+  if ATamanho <= 0 then ATamanho := 50;
+  Offset := APagina * ATamanho;
+
+  Result := TObjectList<TPessoaDTO>.Create(True);
+  Pessoas := FPessoaRepo.Listar(FConn, Offset, ATamanho);
+  try
+    for P in Pessoas do
+      Result.Add(TPessoaDTO.FromEntity(P));
+  finally
+    Pessoas.Free;
+  end;
+end;
+
+function TPessoaService.ObterPorId(AIdPessoa: Int64): TPessoaDTO;
+var
+  P: TPessoa;
+begin
+  P := FPessoaRepo.ObterPorId(FConn, AIdPessoa);
+  if not Assigned(P) then
+    Exit(nil);
+  try
+    Result := TPessoaDTO.FromEntity(P);
+  finally
+    P.Free;
+  end;
+end;
+
+procedure TPessoaService.ProcessarLinhaCsv(const ALinha: string;
+  var AQtdeInseridos, AQtdeNoLote: Integer; const ATamanhoLote: Integer);
+var
+  LCampos: TArray<string>;
+  LPessoaDTO: TPessoaDTO;
+  LEndDTO: TEnderecoDTO;
+  LCep: string;
+  LPessoaEnt: TPessoa;
+begin
+  if ALinha.Trim = '' then Exit;
+
+  LCampos := SepararCampos(ALinha);
+  if Length(LCampos) < 6 then Exit;
+
+  LPessoaDTO := TPessoaDTO.Create;
+  try
+    LPessoaDTO.FlNatureza  := StrToIntDef(LCampos[0], 1);
+    LPessoaDTO.DsDocumento := LCampos[1];
+    LPessoaDTO.NmPrimeiro  := LCampos[2];
+    LPessoaDTO.NmSegundo   := LCampos[3];
+    LPessoaDTO.DtRegistro  := LCampos[4];
+
+    LCep := SomenteDigitos(LCampos[5]);
+    if Length(LCep) > 8 then LCep := Copy(LCep, 1, 8)
+    else if Length(LCep) < 8 then LCep := LCep.PadLeft(8, '0');
+
+    LEndDTO := TEnderecoDTO.Create;
+    LEndDTO.DsCep := LCep;
+    LPessoaDTO.Enderecos.Add(LEndDTO);
+
+    LPessoaEnt := LPessoaDTO.ToEntity;
+    try
+      FPessoaRepo.Inserir(FConn, LPessoaEnt);
+    finally
+      LPessoaEnt.Free;
+    end;
+
+    Inc(AQtdeInseridos);
+    Inc(AQtdeNoLote);
+    if (ATamanhoLote > 0) and (AQtdeNoLote >= ATamanhoLote) then
+    begin
+      FConn.CommitRetaining;
+      AQtdeNoLote := 0;
+    end;
+  finally
+    LPessoaDTO.Free;
+  end;
+end;
+
+function TPessoaService.Criar(const APessoa: TPessoaDTO): Int64;
+var
+  Ent: TPessoa;
+begin
+  if not Assigned(APessoa) then
+    raise Exception.Create('Payload inválido.');
+  if (APessoa.Enderecos = nil) or (APessoa.Enderecos.Count = 0) then
+    raise Exception.Create('A pessoa deve possuir ao menos um endereço.');
+
+  FConn.StartTransaction;
+  try
+    Ent := APessoa.ToEntity;
+    try
+      Result := FPessoaRepo.Inserir(FConn, Ent);
+    finally
+      Ent.Free;
+    end;
+    FConn.Commit;
+  except
+    FConn.Rollback;
+    raise;
+  end;
+end;
+
+function TPessoaService.ImportarCSV(const AConteudoCSV: string;
+  ATamanhoLote: Integer): Integer;
+var
+  LStream: TStringStream;
+  LReader: TStreamReader;
+  LLinha: string;
+  LQtdeNoLote: Integer;
+  LQtdeInseridos: Integer;
+begin
+  Result := 0;
+  if AConteudoCSV.Trim = '' then
+    Exit(0);
+  if ATamanhoLote <= 0 then
+    ATamanhoLote := 1000;
+
+  LQtdeInseridos := 0;
+  LQtdeNoLote    := 0;
+
+  LStream := TStringStream.Create(AConteudoCSV, TEncoding.UTF8);
+  LReader := TStreamReader.Create(LStream, TEncoding.UTF8, False);
+  try
+    FConn.StartTransaction;
+    try
+      if not LReader.EndOfStream then
+      begin
+        LLinha := LReader.ReadLine;
+        if not LinhaEhCabecalho(LLinha) then
+          ProcessarLinhaCsv(LLinha, LQtdeInseridos, LQtdeNoLote, ATamanhoLote);
+      end;
+
+      while not LReader.EndOfStream do
+      begin
+        LLinha := LReader.ReadLine;
+        ProcessarLinhaCsv(LLinha, LQtdeInseridos, LQtdeNoLote, ATamanhoLote);
+      end;
+
+      FConn.Commit;
+      Result := LQtdeInseridos;
+    except
+      FConn.Rollback;
+      raise;
+    end;
+  finally
+    LReader.Free;
+    LStream.Free;
+  end;
+end;
+
+procedure TPessoaService.Atualizar(const APessoa: TPessoaDTO);
+var
+  Ent: TPessoa;
+begin
+  if (APessoa = nil) or (APessoa.IdPessoa = 0) then
+    raise Exception.Create('IdPessoa inválido.');
+  if (APessoa.Enderecos = nil) or (APessoa.Enderecos.Count = 0) then
+    raise Exception.Create('A pessoa deve possuir ao menos um endereço.');
+
+  FConn.StartTransaction;
+  try
+    Ent := APessoa.ToEntity;
+    try
+      FPessoaRepo.Atualizar(FConn, Ent);
+    finally
+      Ent.Free;
+    end;
+    FConn.Commit;
+  except
+    FConn.Rollback;
+    raise;
+  end;
+end;
+
+procedure TPessoaService.Remover(AIdPessoa: Int64);
+begin
+  if AIdPessoa = 0 then
+    raise Exception.Create('IdPessoa inválido.');
+
+  FConn.StartTransaction;
+  try
+    FPessoaRepo.Excluir(FConn, AIdPessoa);
+    FConn.Commit;
+  except
+    FConn.Rollback;
+    raise;
+  end;
+end;
+
+end.
+

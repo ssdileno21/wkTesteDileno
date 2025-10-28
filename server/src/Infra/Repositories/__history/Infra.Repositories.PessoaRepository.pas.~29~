@@ -1,0 +1,128 @@
+unit Infra.Repositories.PessoaRepository;
+
+interface
+
+uses
+  System.Generics.Collections,
+  FireDAC.Comp.Client,
+  Domain.Entities.Pessoa;
+
+
+  type
+    IPessoaRepository = interface
+      ['{182597D5-475C-4E7D-AEBB-C8587681F1D3}']
+    function Inserir(const AConexao: TFDConnection; const APessoa: TPessoa): Int64;
+    procedure Atualizar(const AConexao: TFDConnection; const APessoa: TPessoa);
+    procedure Excluir(const AConexao: TFDConnection; const AIdPessoa: Int64);
+
+    function ObterPorId(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64
+    ): TPessoa;
+
+    function Listar(
+      const AConexao: TFDConnection;
+      const ADeslocamento,
+      ALimite: Integer
+    ): TObjectList<TPessoa>;
+
+    function InserirEmLote(
+      const AConexao: TFDConnection;
+      const APessoas: TObjectList<TPessoa>;
+      const ATamanhoCommit: Integer = 1000
+    ): Integer;
+  end;
+
+  TPessoaRepository = class(TInterfacedObject, IPessoaRepository)
+  public
+    function Inserir(const AConexao: TFDConnection; const APessoa: TPessoa): Int64;
+    procedure Atualizar(const AConexao: TFDConnection; const APessoa: TPessoa);
+    procedure Excluir(const AConexao: TFDConnection; const AIdPessoa: Int64);
+
+    function ObterPorId(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64
+    ): TPessoa;
+
+    function Listar(
+      const AConexao: TFDConnection;
+      const ADeslocamento,
+      ALimite: Integer
+    ): TObjectList<TPessoa>;
+
+    function InserirEmLote(
+      const AConexao: TFDConnection;
+      const APessoas: TObjectList<TPessoa>;
+      const ATamanhoCommit: Integer = 1000
+    ): Integer;
+  end;
+
+implementation
+
+uses
+  System.SysUtils, Domain.Entities.Endereco, Infra.DAO.PessoaDAO;
+
+{ TPessoaRepository }
+
+procedure TPessoaRepository.Atualizar(const AConexao: TFDConnection;
+  const APessoa: TPessoa);
+var
+  LEndereco: TEndereco;
+begin
+  TPessoaDAO.AtualizarPessoa(
+    AConexao, APessoa.IdPessoa, APessoa.FlNatureza, APessoa.DsDocumento,
+    APessoa.NmPrimeiro, APessoa.NmSegundo, APessoa.DtRegistro
+  );
+
+  TPessoaDAO.ExcluirEnderecosPorPessoa(AConexao, APessoa.IdPessoa);
+  for LEndereco in APessoa.Enderecos do
+    LEndereco.IdEndereco :=
+      TPessoaDAO.InserirEndereco(AConexao, APessoa.IdPessoa, LEndereco.DsCep);
+end;
+
+procedure TPessoaRepository.Excluir(const AConexao: TFDConnection;
+  const AIdPessoa: Int64);
+begin
+  TPessoaDAO.ExcluirEnderecosPorPessoa(AConexao, AIdPessoa);
+  TPessoaDAO.ExcluirPessoa(AConexao, AIdPessoa);
+end;
+
+function TPessoaRepository.Inserir(const AConexao: TFDConnection;
+  const APessoa: TPessoa): Int64;
+var
+  LEndereco: TEndereco;
+begin
+  Result := TPessoaDAO.InserirPessoa(
+    AConexao,
+    APessoa.FlNatureza,
+    APessoa.DsDocumento,
+    APessoa.NmPrimeiro,
+    APessoa.NmSegundo,
+    APessoa.DtRegistro
+  );
+  APessoa.IdPessoa := Result;
+
+  for LEndereco in APessoa.Enderecos do
+    LEndereco.IdEndereco :=
+      TPessoaDAO.InserirEndereco(AConexao, APessoa.IdPessoa, LEndereco.DsCep);
+end;
+
+function TPessoaRepository.InserirEmLote(const AConexao: TFDConnection;
+  const APessoas: TObjectList<TPessoa>; const ATamanhoCommit: Integer): Integer;
+begin
+
+end;
+
+function TPessoaRepository.Listar(const AConexao: TFDConnection;
+  const ADeslocamento, ALimite: Integer): TObjectList<TPessoa>;
+begin
+
+end;
+
+function TPessoaRepository.ObterPorId(const AConexao: TFDConnection;
+  const AIdPessoa: Int64): TPessoa;
+begin
+
+end;
+
+end.

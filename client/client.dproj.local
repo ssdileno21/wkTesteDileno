@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2025/10/23 14:26:36.000.410,=C:\Users\Dileno\OneDrive\Documentos\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2025/10/23 14:31:46.000.745,C:\projetos\wkTesteDileno\client\src\View\View.Principal.dfm=C:\Users\Dileno\OneDrive\Documentos\Embarcadero\Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>2025/10/23 14:31:46.000.745,C:\projetos\wkTesteDileno\client\src\View\View.Principal.pas=C:\Users\Dileno\OneDrive\Documentos\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2025/10/23 14:32:14.000.141,C:\projetos\wkTesteDileno\client\client.dproj=C:\Users\Dileno\OneDrive\Documentos\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>2025/10/24 01:00:06.000.961,=C:\projetos\wkTesteDileno\client\Unit1.pas</Transaction>
+    <Transaction>2025/10/24 01:00:21.000.889,C:\projetos\wkTesteDileno\client\Unit1.pas=C:\projetos\wkTesteDileno\client\src\Controller\Controllers.PessoaController.pas</Transaction>
+    <Transaction>2025/10/24 01:00:43.000.538,C:\projetos\wkTesteDileno\client\src\Controller\Controllers.PessoaController.pas=</Transaction>
+    <Transaction>2025/10/24 01:00:48.000.612,=C:\projetos\wkTesteDileno\client\Unit1.pas</Transaction>
+    <Transaction>2025/10/24 01:02:02.000.784,C:\projetos\wkTesteDileno\client\Unit1.pas=C:\projetos\wkTesteDileno\client\src\Controller\Controllers.PessoaController.pas</Transaction>
+    <Transaction>2025/10/24 01:02:06.000.132,=C:\projetos\wkTesteDileno\client\Unit1.pas</Transaction>
+    <Transaction>2025/10/24 01:02:40.000.461,C:\projetos\wkTesteDileno\client\Unit1.pas=C:\projetos\wkTesteDileno\client\src\Infra\Api\Infra.Api.PessoaApi.pas</Transaction>
+    <Transaction>2025/10/26 21:12:45.000.318,=C:\projetos\wkTesteDileno\client\ClientClassesUnit1.pas</Transaction>
+    <Transaction>2025/10/26 21:12:45.000.999,=C:\projetos\wkTesteDileno\client\ClientModuleUnit1.pas</Transaction>
+    <Transaction>2025/10/27 02:00:05.000.706,C:\projetos\wkTesteDileno\client\src\Api\ClientModuleUnit1.dfm=C:\projetos\wkTesteDileno\client\ClientModuleUnit1.dfm</Transaction>
+    <Transaction>2025/10/27 02:00:05.000.706,C:\projetos\wkTesteDileno\client\src\Api\ClientModuleUnit1.pas=C:\projetos\wkTesteDileno\client\ClientModuleUnit1.pas</Transaction>
+    <Transaction>2025/10/27 02:00:14.000.959,C:\projetos\wkTesteDileno\client\src\Api\ClientClassesUnit1.pas=C:\projetos\wkTesteDileno\client\ClientClassesUnit1.pas</Transaction>
+    <Transaction>2025/10/27 07:55:21.000.780,=C:\projetos\wkTesteDileno\client\Unit1.pas</Transaction>
+    <Transaction>2025/10/27 07:55:44.000.579,=C:\projetos\wkTesteDileno\client\Unit2.pas</Transaction>
+    <Transaction>2025/10/27 07:56:08.000.478,C:\projetos\wkTesteDileno\client\src\Infra\Api\Infra.Api.EnderecoApi.pas=C:\projetos\wkTesteDileno\client\Unit2.pas</Transaction>
+    <Transaction>2025/10/27 08:00:30.000.889,=C:\projetos\wkTesteDileno\client\Unit1.pas</Transaction>
+    <Transaction>2025/10/27 08:00:47.000.436,C:\projetos\wkTesteDileno\client\Unit1.pas=C:\projetos\wkTesteDileno\client\src\Controller\Controllers.EnderecoController.pas</Transaction>
+  </Transactions>
+</BorlandProject>

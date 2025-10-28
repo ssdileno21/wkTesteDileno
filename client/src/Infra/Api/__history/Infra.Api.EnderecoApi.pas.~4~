@@ -1,0 +1,36 @@
+unit Infra.Api.EnderecoApi;
+
+interface
+
+type
+  TEnderecoApi = class
+  public
+    procedure DispararViaCEP;
+    function StatusViaCEP: string;
+    function VerificaDispararCEP: Boolean;
+  end;
+
+implementation
+
+uses
+  ClientModuleUnit1;
+
+{ TEnderecoApi }
+
+procedure TEnderecoApi.DispararViaCEP;
+begin
+  ClientModule1.ServerMethods1Client.ViaCEP_Disparar;
+end;
+
+function TEnderecoApi.StatusViaCEP: string;
+begin
+  Result := ClientModule1.ServerMethods1Client.ViaCEP_Status;
+end;
+
+function TEnderecoApi.VerificaDispararCEP: Boolean;
+begin
+  Result := ClientModule1.ServerMethods1Client.VerificaDispararCEP;
+end;
+
+end.
+

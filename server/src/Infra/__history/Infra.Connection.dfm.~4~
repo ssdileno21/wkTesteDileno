@@ -1,0 +1,19 @@
+object DMConnection: TDMConnection
+  OnCreate = DataModuleCreate
+  Height = 489
+  Width = 395
+  PixelsPerInch = 120
+  object FDConn: TFDConnection
+    Left = 72
+    Top = 48
+  end
+  object FDPhysPgDriverLink1: TFDPhysPgDriverLink
+    Left = 72
+    Top = 112
+  end
+  object FDGUIxWaitCursor1: TFDGUIxWaitCursor
+    Provider = 'Forms'
+    Left = 72
+    Top = 176
+  end
+end

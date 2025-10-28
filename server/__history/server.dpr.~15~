@@ -1,0 +1,30 @@
+program server;
+{$APPTYPE GUI}
+
+{$R *.dres}
+
+uses
+  Vcl.Forms,
+  Web.WebReq,
+  IdHTTPWebBrokerBridge,
+  View.Principal in 'src\View\View.Principal.pas' {frmPrincipal},
+  Api.ServerMethods in 'src\Api\Api.ServerMethods.pas' {ServerMethods1: TDataModule},
+  Api.WebModule in 'src\Api\Api.WebModule.pas' {WebModule1: TWebModule},
+  Infra.Connection in 'src\Infra\Connection\Infra.Connection.pas' {DMConnection: TDataModule},
+  Domain.Entities.Pessoa in 'src\Domain\Entities\Domain.Entities.Pessoa.pas',
+  Domain.Entities.Endereco in 'src\Domain\Entities\Domain.Entities.Endereco.pas',
+  Domain.Services.PessoaService in 'src\Domain\Services\Domain.Services.PessoaService.pas',
+  Infra.Repositories.PessoaRepository in 'src\Infra\Repositories\Infra.Repositories.PessoaRepository.pas',
+  Infra.Repositories.EnderecoRepository in 'src\Infra\Repositories\Infra.Repositories.EnderecoRepository.pas',
+  Domain.Services.Interfaces in 'src\Domain\Services\Domain.Services.Interfaces.pas';
+
+{$R *.res}
+
+begin
+  if WebRequestHandler <> nil then
+    WebRequestHandler.WebModuleClass := WebModuleClass;
+  Application.Initialize;
+  Application.CreateForm(TDMConnection, DMConnection);
+  Application.CreateForm(TfrmPrincipal, frmPrincipal);
+  Application.Run;
+end.

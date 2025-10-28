@@ -1,0 +1,74 @@
+unit Controllers.EnderecoController;
+
+interface
+
+uses
+  Infra.Api.EnderecoApi;
+
+type
+  TEnderecoController = class
+  private
+    FApi: TEnderecoApi;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure DispararViaCEP;
+
+    function StatusViaCEP: string;
+    function VerificaDispararCEP: Boolean;
+    function ProcessadosIgualTotal: Boolean;
+    function ViaCepProcessados: Integer;
+    function ViaCepTotal: Integer;
+  end;
+
+implementation
+
+uses System.SyncObjs;
+
+{ TEnderecoController }
+
+constructor TEnderecoController.Create;
+begin
+  inherited Create;
+  FApi := TEnderecoApi.Create;
+end;
+
+destructor TEnderecoController.Destroy;
+begin
+  FApi.Free;
+  inherited;
+end;
+
+procedure TEnderecoController.DispararViaCEP;
+begin
+  FApi.DispararViaCEP;
+end;
+
+function TEnderecoController.ProcessadosIgualTotal: Boolean;
+begin
+  Result := FApi.ProcessadosIgualTotal;
+end;
+
+function TEnderecoController.StatusViaCEP: string;
+begin
+  Result := FApi.StatusViaCEP;
+end;
+
+function TEnderecoController.VerificaDispararCEP: Boolean;
+begin
+  Result := FApi.VerificaDispararCEP;
+end;
+
+function TEnderecoController.ViaCepProcessados: Integer;
+begin
+  Result := FApi.ViaCEP_Processados;
+end;
+
+function TEnderecoController.ViaCepTotal: Integer;
+begin
+  Result := FApi.ViaCEP_Total;
+end;
+
+end.
+

@@ -1,0 +1,46 @@
+unit Domain.Entities.Pessoa;
+
+interface
+
+uses
+  System.Generics.Collections, Domain.Entities.Endereco;
+
+type
+  TPessoa = class
+  private
+    FIdPessoa : Int64;
+    FFlNatureza : SmallInt;
+    FDsDocumento : string;
+    FNmPrimeiro : string;
+    FNmSegundo : string;
+    FDtRegistro : TDate;
+    FEnderecos : TObjectList<TEndereco>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    property IdPessoa : Int64 read FIdPessoa write FIdPessoa;
+    property FlNatureza : SmallInt read FFlNatureza write FFlNatureza;
+    property DsDocumento : string read FDsDocumento write FDsDocumento;
+    property NmPrimeiro : string read FNmPrimeiro write FNmPrimeiro;
+    property NmSegundo : string read FNmSegundo write FNmSegundo;
+    property DtRegistro : TDate read FDtRegistro write FDtRegistro;
+    property Enderecos : TObjectList<TEndereco> read FEnderecos;
+  end;
+
+implementation
+
+{ TPessoa }
+
+constructor TPessoa.Create;
+begin
+  FEnderecos := TObjectList<TEndereco>.Create(True);
+end;
+
+destructor TPessoa.Destroy;
+begin
+  FEnderecos.Free;
+  inherited;
+end;
+
+end.

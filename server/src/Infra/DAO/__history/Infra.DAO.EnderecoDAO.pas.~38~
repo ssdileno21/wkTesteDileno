@@ -1,0 +1,184 @@
+unit Infra.DAO.EnderecoDAO;
+
+interface
+
+uses
+  System.SysUtils,
+  FireDAC.Comp.Client,
+  FireDAC.Comp.DataSet,
+  FireDAC.Stan.Param,
+  FireDAC.Stan.Option,
+  FireDAC.Stan.Def,
+  FireDAC.Phys.Intf;
+
+type
+  TEnderecoDAO = class
+  private
+    FConn: TFDConnection;
+    procedure FinalizarQuerySegura(var AQuery: TFDQuery);
+  public
+    constructor Create(AConn: TFDConnection);
+
+    function InserirEndereco(const AIdPessoa: Int64; const ACep: string): Int64;
+    procedure ExcluirPorPessoa(const AIdPessoa: Int64);
+    procedure ExcluirPorId(const AIdEndereco: Int64);
+    function Contar: Integer;
+    function AbrirEnderecosPaginado(const ADeslocamento, ALimite: Integer): TFDQuery;
+
+    procedure GravarIntegracao(
+      const AIdEndereco: Int64;
+      const AUf, ACidade, ABairro, ALogradouro, AComplemento: string
+    );
+
+  end;
+
+
+implementation
+
+{ TEnderecoDAO }
+
+function TEnderecoDAO.AbrirEnderecosPaginado(const ADeslocamento,
+  ALimite: Integer): TFDQuery;
+begin
+  Result := TFDQuery.Create(nil);
+  try
+    Result.Connection := FConn;
+    Result.SQL.Text :=
+      'select idendereco, idpessoa, dscep ' +
+      'from endereco ' +
+      'order by idendereco ' +
+      'limit :limite offset :desloc';
+    Result.ParamByName('limite').AsInteger := ALimite;
+    Result.ParamByName('desloc').AsInteger := ADeslocamento;
+    Result.Open;
+    except
+      FreeAndNil(Result);
+      raise;
+    end;
+end;
+
+function TEnderecoDAO.Contar: Integer;
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FConn;
+    LQuery.SQL.Text := 'select count(*) as total from endereco';
+    LQuery.Open;
+    Result := LQuery.FieldByName('total').AsInteger;
+  finally
+    FinalizarQuerySegura(LQuery);
+  end;
+end;
+
+constructor TEnderecoDAO.Create(AConn: TFDConnection);
+begin
+  inherited Create;
+  FConn := AConn;
+end;
+
+procedure TEnderecoDAO.ExcluirPorId(const AIdEndereco: Int64);
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FConn;
+    LQuery.SQL.Text := 'delete from endereco where idendereco = :idendereco';
+    LQuery.ParamByName('idendereco').AsLargeInt := AIdEndereco;
+    LQuery.ExecSQL;
+  finally
+    FinalizarQuerySegura(LQuery);
+  end;
+end;
+
+procedure TEnderecoDAO.ExcluirPorPessoa(const AIdPessoa: Int64);
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FConn;
+    LQuery.SQL.Text := 'delete from endereco where idpessoa = :idpessoa';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.ExecSQL;
+  finally
+    FinalizarQuerySegura(LQuery);
+  end;
+end;
+
+procedure TEnderecoDAO.FinalizarQuerySegura(var AQuery: TFDQuery);
+begin
+  if Assigned(AQuery) then
+  begin
+    try
+      AQuery.Close;
+    except
+      on E: Exception do
+        raise
+    end;
+
+    try
+      AQuery.Connection := nil;
+    except
+      on E: Exception do
+        raise
+    end;
+
+    FreeAndNil(AQuery);
+  end;
+end;
+
+procedure TEnderecoDAO.GravarIntegracao(const AIdEndereco: Int64;
+const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FConn;
+    LQuery.SQL.Text :=
+      'insert into endereco_integracao '+
+      ' (idendereco, dsuf, nmcidade, nmbairro, nmlogradouro, dscomplemento) '+
+      'values (:id, :uf, :cidade, :bairro, :logr, :compl) '+
+      'on conflict (idendereco) do update set '+
+      '  dsuf = excluded.dsuf, '+
+      '  nmcidade = excluded.nmcidade, '+
+      '  nmbairro = excluded.nmbairro, '+
+      '  nmlogradouro = excluded.nmlogradouro, '+
+      '  dscomplemento = excluded.dscomplemento';
+    LQuery.ParamByName('id').AsLargeInt := AIdEndereco;
+    LQuery.ParamByName('uf').AsString   := AUf;
+    LQuery.ParamByName('cidade').AsString := ACidade;
+    LQuery.ParamByName('bairro').AsString := ABairro;
+    LQuery.ParamByName('logr').AsString   := ALogradouro;
+    LQuery.ParamByName('compl').AsString  := AComplemento;
+    LQuery.ExecSQL;
+  finally
+    FinalizarQuerySegura(LQuery);
+  end;
+end;
+
+function TEnderecoDAO.InserirEndereco(const AIdPessoa: Int64; const ACep:
+string): Int64;
+var
+  LQuery : TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := FConn;
+    LQuery.SQL.Text :=
+      'insert into endereco (idpessoa, dscep) '+
+      'values (:idpessoa, :dscep) '+
+      'returning idendereco';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.ParamByName('dscep').AsString := ACep;
+    LQuery.Open;
+    Result := LQuery.Fields[0].AsLargeInt;
+  finally
+    FinalizarQuerySegura(LQuery);
+  end;
+end;
+
+end.

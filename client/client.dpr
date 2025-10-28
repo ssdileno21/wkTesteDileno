@@ -1,0 +1,21 @@
+program client;
+
+uses
+  Vcl.Forms,
+  View.Principal in 'src\View\View.Principal.pas' {frmPrincipal},
+  Controllers.PessoaController in 'src\Controller\Controllers.PessoaController.pas',
+  Infra.Api.PessoaApi in 'src\Infra\Api\Infra.Api.PessoaApi.pas',
+  ClientClassesUnit1 in 'src\Api\ClientClassesUnit1.pas',
+  ClientModuleUnit1 in 'src\Api\ClientModuleUnit1.pas' {ClientModule1: TDataModule},
+  Infra.Api.EnderecoApi in 'src\Infra\Api\Infra.Api.EnderecoApi.pas',
+  Controllers.EnderecoController in 'src\Controller\Controllers.EnderecoController.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TClientModule1, ClientModule1);
+  Application.CreateForm(TfrmPrincipal, frmPrincipal);
+  Application.Run;
+end.

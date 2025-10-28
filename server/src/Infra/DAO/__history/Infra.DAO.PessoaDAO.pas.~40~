@@ -1,0 +1,370 @@
+unit Infra.DAO.PessoaDAO;
+
+interface
+
+uses
+  System.SysUtils,
+  FireDAC.Comp.Client,
+  System.Generics.Collections,
+  FireDAC.Stan.Param,
+  Data.DB,
+  Domain.Entities.Pessoa,
+  Domain.Entities.Endereco;
+
+type
+  TPessoaDAO = class
+  public
+    class procedure AbrirPessoaPorId(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      AConsulta: TFDQuery
+    ); static;
+    class procedure AbrirPessoasPaginado(
+      const AConexao: TFDConnection;
+      const ADeslocamento, ALimite: Integer;
+      AConsulta: TFDQuery
+    ); static;
+    class procedure AbrirEnderecosPorPessoa(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      AConsulta: TFDQuery
+    ); static;
+
+    class function InserirPessoa(
+      const AConexao: TFDConnection;
+      const AFlNatureza: Integer;
+      const ADsDocumento, ANmPrimeiro, ANmSegundo: string;
+      const ADtRegistro: TDateTime
+    ): Int64; static;
+    class procedure AtualizarPessoa(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const AFlNatureza: Integer;
+      const ADsDocumento, ANmPrimeiro, ANmSegundo: string;
+      const ADtRegistro: TDateTime
+    ); static;
+    class procedure ExcluirPessoa(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64
+    ); static;
+
+    class function InserirEndereco(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const ACep: string
+    ): Int64; static;
+    class procedure ExcluirEnderecosPorPessoa(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64
+    ); static;
+
+    class function CarregarPessoaPorId(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64
+    ): TPessoa; static;
+    class function ListarPessoas(
+      const AConexao: TFDConnection;
+      const ADeslocamento, ALimite: Integer
+    ): TObjectList<TPessoa>; static;
+
+    class function ContarPessoas(
+      const AConexao: TFDConnection
+    ): Integer; static;
+  end;
+
+implementation
+
+{ TPessoaDAO }
+
+class procedure TPessoaDAO.AbrirEnderecosPorPessoa(
+  const AConexao: TFDConnection; const AIdPessoa: Int64; AConsulta: TFDQuery);
+begin
+  AConsulta.Close;
+  AConsulta.Connection := AConexao;
+  AConsulta.SQL.Text :=
+    'select * from endereco where idpessoa = :idpessoa order by idendereco';
+  AConsulta.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+  AConsulta.Open;
+end;
+
+class procedure TPessoaDAO.AbrirPessoaPorId(const AConexao: TFDConnection;
+  const AIdPessoa: Int64; AConsulta: TFDQuery);
+begin
+  AConsulta.Close;
+  AConsulta.Connection := AConexao;
+  AConsulta.SQL.Text :=
+    'select * from pessoa '+
+    'where idpessoa = :idpessoa';
+  AConsulta.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+  AConsulta.Open;
+end;
+
+class procedure TPessoaDAO.AbrirPessoasPaginado(const AConexao: TFDConnection;
+  const ADeslocamento, ALimite: Integer; AConsulta: TFDQuery);
+begin
+  AConsulta.Close;
+  AConsulta.Connection := AConexao;
+  AConsulta.SQL.Text :=
+    'select '+
+    '   idpessoa, flnatureza, dsdocumento, nmprimeiro, nmsegundo, dtregistro '+
+    'from pessoa '+
+    'order by idpessoa '+
+    'limit :limite offset :desloc';
+  AConsulta.ParamByName('limite').AsInteger := ALimite;
+  AConsulta.ParamByName('desloc').AsInteger := ADeslocamento;
+  AConsulta.Open;
+end;
+
+class procedure TPessoaDAO.AtualizarPessoa(const AConexao: TFDConnection;
+  const AIdPessoa: Int64; const AFlNatureza: Integer; const ADsDocumento,
+  ANmPrimeiro, ANmSegundo: string; const ADtRegistro: TDateTime);
+var
+  LQuery: TFDQuery;
+  LParam: TFDParam;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text :=
+      'update pessoa set '+
+      ' flnatureza = :flnatureza, '+
+      ' dsdocumento = :dsdocumento, '+
+      ' nmprimeiro = :nmprimeiro, '+
+      ' nmsegundo  = :nmsegundo, '+
+      ' dtregistro = :dtregistro '+
+      'where idpessoa = :idpessoa';
+
+    LQuery.ParamByName('flnatureza').AsInteger := AFlNatureza;
+    LQuery.ParamByName('dsdocumento').AsString := ADsDocumento;
+    LQuery.ParamByName('nmprimeiro').AsString := ANmPrimeiro;
+    LQuery.ParamByName('nmsegundo').AsString := ANmSegundo;
+
+    LParam := LQuery.ParamByName('dtregistro');
+    LParam.DataType := ftDate;
+    if ADtRegistro = 0 then
+      LParam.Clear
+    else
+      LParam.AsDate := ADtRegistro;
+
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+
+    LQuery.ExecSQL;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+class function TPessoaDAO.CarregarPessoaPorId(const AConexao: TFDConnection;
+  const AIdPessoa: Int64): TPessoa;
+var
+  LQuery : TFDQuery;
+  LEndereco : TEndereco;
+begin
+  Result := nil;
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text := 'select * from pessoa where idpessoa = :idpessoa';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.Open;
+
+    if not LQuery.Eof then
+    begin
+      Result := TPessoa.Create;
+      Result.IdPessoa    := LQuery.FieldByName('idpessoa').AsLargeInt;
+      Result.FlNatureza  := LQuery.FieldByName('flnatureza').AsInteger;
+      Result.DsDocumento := LQuery.FieldByName('dsdocumento').AsString;
+      Result.NmPrimeiro  := LQuery.FieldByName('nmprimeiro').AsString;
+      Result.NmSegundo   := LQuery.FieldByName('nmsegundo').AsString;
+      Result.DtRegistro  := LQuery.FieldByName('dtregistro').AsDateTime;
+    end;
+
+    if Assigned(Result) then
+    begin
+      LQuery.Close;
+      LQuery.SQL.Text :=
+        'select idendereco, dscep from endereco '+
+        'where idpessoa = :idpessoa order by idendereco';
+      LQuery.ParamByName('idpessoa').AsLargeInt := Result.IdPessoa;
+      LQuery.Open;
+
+      while not LQuery.Eof do
+      begin
+        LEndereco := TEndereco.Create;
+        LEndereco.IdEndereco := LQuery.FieldByName('idendereco').AsLargeInt;
+        LEndereco.IdPessoa := Result.IdPessoa;
+        LEndereco.DsCep := LQuery.FieldByName('dscep').AsString;
+
+        Result.Enderecos.Add(LEndereco);
+        LQuery.Next;
+      end;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+class function TPessoaDAO.ContarPessoas(const AConexao: TFDConnection): Integer;
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text := 'select count(*) as total from pessoa';
+    LQuery.Open;
+    Result := LQuery.FieldByName('total').AsInteger;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+class procedure TPessoaDAO.ExcluirEnderecosPorPessoa(
+  const AConexao: TFDConnection; const AIdPessoa: Int64);
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text := 'delete from endereco where idpessoa = :idpessoa';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.ExecSQL;
+  finally
+    LQuery.Free;
+  end;
+
+end;
+
+class procedure TPessoaDAO.ExcluirPessoa(const AConexao: TFDConnection;
+  const AIdPessoa: Int64);
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text := 'delete from pessoa where idpessoa = :idpessoa';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.ExecSQL;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+class function TPessoaDAO.InserirEndereco(const AConexao: TFDConnection;
+  const AIdPessoa: Int64; const ACep: string): Int64;
+var
+  LQuery: TFDQuery;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text :=
+      'insert into endereco '+
+      '(idpessoa, dscep) '+
+      'values '+
+      '(:idpessoa, :dscep) '+
+      'returning idendereco';
+    LQuery.ParamByName('idpessoa').AsLargeInt := AIdPessoa;
+    LQuery.ParamByName('dscep').AsString := ACep;
+    LQuery.Open;
+    Result := LQuery.Fields[0].AsLargeInt;
+  finally
+    LQuery.Free;
+  end;
+
+end;
+
+class function TPessoaDAO.InserirPessoa(const AConexao: TFDConnection;
+  const AFlNatureza: Integer; const ADsDocumento, ANmPrimeiro,
+  ANmSegundo: string; const ADtRegistro: TDateTime): Int64;
+var
+  LQuery: TFDQuery;
+  LParam: TFDParam;
+begin
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text :=
+      'insert into pessoa '+
+      '(flnatureza, dsdocumento, nmprimeiro, nmsegundo, dtregistro) '+
+      'values '+
+      '(:flnatureza, :dsdocumento, :nmprimeiro, :nmsegundo, :dtregistro) '+
+      'returning idpessoa';
+
+    LQuery.ParamByName('flnatureza').AsInteger := AFlNatureza;
+    LQuery.ParamByName('dsdocumento').AsString := ADsDocumento;
+    LQuery.ParamByName('nmprimeiro').AsString  := ANmPrimeiro;
+    LQuery.ParamByName('nmsegundo').AsString   := ANmSegundo;
+
+    LParam := LQuery.ParamByName('dtregistro');
+    LParam.DataType := ftDate;
+    if ADtRegistro = 0 then
+      LParam.Clear
+    else
+      LParam.AsDate := ADtRegistro;
+
+    LQuery.Open;
+    Result := LQuery.Fields[0].AsLargeInt;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+class function TPessoaDAO.ListarPessoas(const AConexao: TFDConnection;
+  const ADeslocamento, ALimite: Integer): TObjectList<TPessoa>;
+var
+  LQuery : TFDQuery;
+  LPessoa : TPessoa;
+  LCep : string;
+  LEnd : TEndereco;
+begin
+  Result := TObjectList<TPessoa>.Create(True);
+
+  LQuery := TFDQuery.Create(nil);
+  try
+    LQuery.Connection := AConexao;
+    LQuery.SQL.Text :=
+      'select p.idpessoa, p.flnatureza, p.dsdocumento, p.nmprimeiro, p.nmsegundo, p.dtregistro, '+
+      '       (select e.dscep '+
+      '          from endereco e '+
+      '         where e.idpessoa = p.idpessoa '+
+      '         order by e.idendereco '+
+      '         limit 1) as dscep '+
+      '  from pessoa p '+
+      ' order by p.idpessoa '+
+      ' limit :limite offset :desloc';
+    LQuery.ParamByName('limite').AsInteger := ALimite;
+    LQuery.ParamByName('desloc').AsInteger := ADeslocamento;
+    LQuery.Open;
+
+    while not LQuery.Eof do
+    begin
+      LPessoa := TPessoa.Create;
+      LPessoa.IdPessoa    := LQuery.FieldByName('idpessoa').AsLargeInt;
+      LPessoa.FlNatureza  := LQuery.FieldByName('flnatureza').AsInteger;
+      LPessoa.DsDocumento := LQuery.FieldByName('dsdocumento').AsString;
+      LPessoa.NmPrimeiro  := LQuery.FieldByName('nmprimeiro').AsString;
+      LPessoa.NmSegundo   := LQuery.FieldByName('nmsegundo').AsString;
+      LPessoa.DtRegistro  := LQuery.FieldByName('dtregistro').AsDateTime;
+
+      LCep := LQuery.FieldByName('dscep').AsString;
+      if LCep <> '' then
+      begin
+        LEnd := TEndereco.Create;
+        LEnd.IdPessoa := LPessoa.IdPessoa;
+        LEnd.DsCep    := LCep;
+        LPessoa.Enderecos.Add(LEnd);
+      end;
+
+      Result.Add(LPessoa);
+      LQuery.Next;
+    end;
+  finally
+    LQuery.Free;
+  end;
+end;
+
+end.

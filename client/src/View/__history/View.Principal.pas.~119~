@@ -1,0 +1,618 @@
+unit View.Principal;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
+  System.Types, System.IOUtils, Vcl.Graphics, Vcl.Controls, Vcl.Forms,
+  Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
+  Controllers.PessoaController, Controllers.EnderecoController, Common.DTOs.PessoaDTO,
+  Common.DTOs.EnderecoDTO, System.Generics.Collections;
+
+type
+  TEstadoTela = (etIdle, etImportando, etDisparandoCep);
+
+type
+  TfrmPrincipal = class(TForm)
+    pnlServidorUrl: TPanel;
+    edtServidorUrl: TEdit;
+    lbServidorUrl: TLabel;
+    pnlBotoes: TPanel;
+    btnDispararCep: TButton;
+    btnRemover: TButton;
+    btnAtualizar: TButton;
+    btnCriar: TButton;
+    btnListar: TButton;
+    btnImportarCsv: TButton;
+    lvRegistros: TListView;
+    pnlComandosListView: TPanel;
+    memoLog: TMemo;
+    btnNext: TButton;
+    btnFirst: TButton;
+    btnPrior: TButton;
+    btnClear: TButton;
+    btnLast: TButton;
+    Panel1: TPanel;
+    lbTotalRegistros: TLabel;
+    pbStatus: TProgressBar;
+    procedure FormCreate(Sender: TObject);
+    procedure btnListarClick(Sender: TObject);
+    procedure btnCriarClick(Sender: TObject);
+    procedure btnAtualizarClick(Sender: TObject);
+    procedure btnRemoverClick(Sender: TObject);
+    procedure btnImportarCsvClick(Sender: TObject);
+    procedure btnDispararCepClick(Sender: TObject);
+    procedure btnFirstClick(Sender: TObject);
+    procedure btnPriorClick(Sender: TObject);
+    procedure btnNextClick(Sender: TObject);
+    procedure btnLastClick(Sender: TObject);
+    procedure btnClearClick(Sender: TObject);
+  private
+    FEstadoTela: TEstadoTela;
+    FPessoaCtrl: TPessoaController;
+    FEnderecoCtrl: TEnderecoController;
+
+    FPagina: Integer;
+    FTamanhoPagina: Integer;
+    FTotalRegistros: Integer;
+    FTotalPaginas: Integer;
+
+    FTimerStatus: TTimer;
+
+    procedure AtualizarEstadoTela(AEstado: TEstadoTela);
+
+    procedure DispararCep;
+    procedure ImportarCsv;
+
+    procedure AtualizarNavButtons;
+    procedure ConfigurarListView;
+    procedure CarregarLista;
+    procedure LimpaCampos;
+
+    function InputPessoa(
+      out APessoaDto: TPessoaDTO;
+      const APessoaOrigem: TPessoaDTO = nil
+    ): Boolean;
+
+    function IdSelecionado: Int64;
+
+    procedure AtualizarContagem;
+    procedure AtualizarLabels;
+
+    procedure TimerStatusTimer(Sender: TObject);
+    procedure AtualizarProgressBar;
+  public
+    //
+  end;
+
+var
+  frmPrincipal: TfrmPrincipal;
+
+implementation
+
+{$R *.dfm}
+
+uses
+  REST.Json,
+  System.StrUtils,
+  System.UITypes,
+  ClientModuleUnit1,
+  ClientClassesUnit1;
+
+procedure TfrmPrincipal.AtualizarContagem;
+begin
+  try
+    FTotalRegistros := FPessoaCtrl.Contar;
+  except
+    on E: Exception do
+    begin
+      FTotalRegistros := 0;
+      memoLog.Lines.Add('[ERRO] Contar: ' + E.Message);
+    end;
+  end;
+
+  if FTamanhoPagina <= 0 then
+    FTamanhoPagina := 100;
+
+  if FTotalRegistros = 0 then
+    FTotalPaginas := 1
+  else
+    FTotalPaginas := (FTotalRegistros + FTamanhoPagina - 1) div FTamanhoPagina;
+
+  if FPagina >= FTotalPaginas then
+    FPagina := FTotalPaginas - 1;
+
+  AtualizarLabels;
+end;
+
+procedure TfrmPrincipal.AtualizarEstadoTela(AEstado: TEstadoTela);
+begin
+  FEstadoTela := AEstado;
+
+  // Desativa tudo
+  btnDispararCep.Enabled := False;
+  btnImportarCsv.Enabled := False;
+  btnCriar.Enabled := False;
+  btnAtualizar.Enabled := False;
+  btnRemover.Enabled := False;
+  btnClear.Enabled := False;
+
+  case FEstadoTela of
+    etIdle:
+    begin
+      btnDispararCep.Enabled := True;
+      btnImportarCsv.Enabled := True;
+      btnCriar.Enabled := True;
+      btnAtualizar.Enabled := True;
+      btnRemover.Enabled := True;
+      btnClear.Enabled := True;
+    end;
+
+    etImportando:
+    begin
+      memoLog.Lines.Add('[INFO] Importação iniciada...');
+    end;
+
+    etDisparandoCep:
+    begin
+      memoLog.Lines.Add('[INFO] Disparo ViaCEP em andamento...');
+    end;
+  end;
+end;
+
+procedure TfrmPrincipal.AtualizarLabels;
+begin
+  lbTotalRegistros.Caption := Format('Total: %d   Página %d de %d',
+    [FTotalRegistros, FPagina + 1, FTotalPaginas]);
+
+  AtualizarNavButtons;
+end;
+
+procedure TfrmPrincipal.AtualizarNavButtons;
+begin
+  btnFirst.Enabled := (FTotalPaginas > 0) and (FPagina > 0);
+  btnPrior.Enabled := (FTotalPaginas > 0) and (FPagina > 0);
+  btnNext.Enabled := (FTotalPaginas > 0) and (FPagina < FTotalPaginas - 1);
+  btnLast.Enabled := (FTotalPaginas > 0) and (FPagina < FTotalPaginas - 1);
+end;
+
+procedure TfrmPrincipal.AtualizarProgressBar;
+var
+  LProcessados, LTotal: Integer;
+begin
+  LProcessados := FEnderecoCtrl.ViaCepProcessados;
+  LTotal := FEnderecoCtrl.ViaCepTotal;
+
+  if LTotal > 0 then
+  begin
+    pbStatus.Max := LTotal;
+    pbStatus.Position := LProcessados;
+  end
+  else
+  begin
+    pbStatus.Position := 0;
+    pbStatus.Max := 100;
+  end;
+end;
+
+procedure TfrmPrincipal.btnAtualizarClick(Sender: TObject);
+var
+  LIdPessoa: Int64;
+  LPessoaOrigem: TPessoaDTO;
+  LPessoaEditada: TPessoaDTO;
+  LOk: Boolean;
+begin
+  LIdPessoa := IdSelecionado;
+  if LIdPessoa = 0 then
+    raise Exception.Create('Selecione um registro na lista.');
+
+  LPessoaOrigem := FPessoaCtrl.ObterPorId(LIdPessoa);
+  if LPessoaOrigem = nil then
+    raise Exception.Create('Registro não encontrado no servidor.');
+  try
+    LOk := InputPessoa(LPessoaEditada, LPessoaOrigem);
+    if not LOk then Exit;
+
+    if FPessoaCtrl.Atualizar(LPessoaEditada) then
+    begin
+      memoLog.Lines.Add(Format('[OK] Atualizado Id=%d', [LIdPessoa]));
+      AtualizarContagem;
+      CarregarLista;
+    end
+    else
+      memoLog.Lines.Add('[ERRO] Atualização não confirmada.');
+  finally
+    FreeAndNil(LPessoaOrigem);
+    if Assigned(LPessoaEditada) then
+      LPessoaEditada.Free;
+  end;
+end;
+
+procedure TfrmPrincipal.btnClearClick(Sender: TObject);
+begin
+  LimpaCampos;
+end;
+
+procedure TfrmPrincipal.btnCriarClick(Sender: TObject);
+var
+  LPessoaDTO: TPessoaDTO;
+  LNewId: Int64;
+begin
+  if not InputPessoa(LPessoaDTO) then Exit;
+  try
+    LNewId := FPessoaCtrl.Criar(LPessoaDTO);
+    memoLog.Lines.Add(Format('[OK] Criado Id=%d', [LNewId]));
+    AtualizarContagem;
+    CarregarLista;
+  finally
+    FreeAndNil(LPessoaDTO);
+  end;
+end;
+
+procedure TfrmPrincipal.btnDispararCepClick(Sender: TObject);
+begin
+  DispararCep;
+end;
+
+procedure TfrmPrincipal.btnFirstClick(Sender: TObject);
+begin
+  if FPagina <> 0 then
+  begin
+    FPagina := 0;
+    CarregarLista;
+  end;
+end;
+
+procedure TfrmPrincipal.btnImportarCsvClick(Sender: TObject);
+begin
+  ImportarCsv;
+end;
+
+procedure TfrmPrincipal.btnLastClick(Sender: TObject);
+begin
+  if FTotalPaginas > 0 then
+  begin
+    FPagina := FTotalPaginas - 1;
+    CarregarLista;
+  end;
+end;
+
+procedure TfrmPrincipal.btnListarClick(Sender: TObject);
+begin
+  try
+    FPagina := 0;
+    AtualizarContagem;
+    CarregarLista;
+    memoLog.Lines.Add('[INFO] Listagem atualizada.');
+  except
+    on E: Exception do
+      memoLog.Lines.Add('[ERRO] ' + E.Message);
+  end;
+end;
+
+procedure TfrmPrincipal.btnNextClick(Sender: TObject);
+begin
+  if FPagina < (FTotalPaginas - 1) then
+  begin
+    Inc(FPagina);
+    CarregarLista;
+  end;
+end;
+
+procedure TfrmPrincipal.btnPriorClick(Sender: TObject);
+begin
+  if FPagina > 0 then
+  begin
+    Dec(FPagina);
+    CarregarLista;
+  end;
+end;
+
+procedure TfrmPrincipal.btnRemoverClick(Sender: TObject);
+var
+  LIdPessoa: Int64;
+begin
+  LIdPessoa := IdSelecionado;
+  if LIdPessoa = 0 then
+    raise Exception.Create('Selecione um registro para remover.');
+
+  if MessageDlg(Format('Remover Id=%d?', [LIdPessoa]),
+                mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  if FPessoaCtrl.Remover(LIdPessoa) then
+  begin
+    memoLog.Lines.Add(Format('[OK] Removido Id=%d', [LIdPessoa]));
+    AtualizarContagem;
+    CarregarLista;
+  end
+  else
+    memoLog.Lines.Add('[ERRO] Remoção não confirmada.');
+end;
+
+procedure TfrmPrincipal.CarregarLista;
+var
+  LLista: TObjectList<TPessoaDTO>;
+  LPessoaDto: TPessoaDTO;
+  LItem: TListItem;
+  LCep: string;
+begin
+  FTotalRegistros := FPessoaCtrl.Contar;
+  if FTamanhoPagina <= 0 then
+    FTamanhoPagina := 100;
+  FTotalPaginas := (FTotalRegistros + FTamanhoPagina - 1) div FTamanhoPagina;
+  if FTotalPaginas = 0 then
+    FTotalPaginas := 1;
+  if FPagina > FTotalPaginas - 1 then
+    FPagina := FTotalPaginas - 1;
+
+  lvRegistros.Items.BeginUpdate;
+  try
+    lvRegistros.Items.Clear;
+
+    LLista := FPessoaCtrl.Listar(FPagina, FTamanhoPagina);
+    try
+      for LPessoaDto in LLista do
+      begin
+        if (LPessoaDto.Enderecos <> nil) and (LPessoaDto.Enderecos.Count > 0)
+           and (LPessoaDto.Enderecos[0] <> nil) then
+          LCep := LPessoaDto.Enderecos[0].DsCep
+        else
+          LCep := EmptyStr;
+
+        LItem := lvRegistros.Items.Add;
+        LItem.Caption := LPessoaDto.IdPessoa.ToString;
+        LItem.SubItems.Add(LPessoaDto.DsDocumento);
+        LItem.SubItems.Add(Trim(LPessoaDto.NmPrimeiro + ' ' + LPessoaDto.NmSegundo));
+        LItem.SubItems.Add(LCep);
+      end;
+    finally
+      FreeAndNil(LLista);
+    end;
+  finally
+    lvRegistros.Items.EndUpdate;
+  end;
+
+  AtualizarLabels;
+
+  memoLog.Lines.Add(Format('[INFO] Página %d de %d | Total: %d',
+    [FPagina + 1, FTotalPaginas, FTotalRegistros]));
+end;
+
+procedure TfrmPrincipal.ConfigurarListView;
+begin
+  lvRegistros.ViewStyle := vsReport;
+  lvRegistros.ReadOnly := True;
+  lvRegistros.RowSelect := True;
+  lvRegistros.Columns.Clear;
+  with lvRegistros.Columns.Add do begin Caption := 'Id'; Width := 80; end;
+  with lvRegistros.Columns.Add do begin Caption := 'Documento'; Width := 120; end;
+  with lvRegistros.Columns.Add do begin Caption := 'Nome'; Width := 220; end;
+  with lvRegistros.Columns.Add do begin Caption := 'CEP'; Width := 100; end;
+end;
+
+procedure TfrmPrincipal.DispararCep;
+begin
+  AtualizarEstadoTela(etDisparandoCep);
+  try
+    btnDispararCep.Enabled := False;
+    memoLog.Lines.Add('[ViaCEP] Processamento iniciado.');
+    FEnderecoCtrl.DispararViaCEP;
+    FTimerStatus.Enabled := True;
+  except
+    on E: Exception do
+      memoLog.Lines.Add('[ERRO] ' + E.Message);
+  end;
+end;
+
+procedure TfrmPrincipal.FormCreate(Sender: TObject);
+begin
+  if edtServidorUrl.Text = EmptyStr then
+    edtServidorUrl.Text := 'http://localhost:8080';
+
+  FPagina := 0;
+  FTamanhoPagina := 100;
+  FTotalRegistros := 0;
+  FTotalPaginas := 1;
+
+  FTimerStatus := TTimer.Create(Self);
+  FTimerStatus.Interval := 2000;
+  FTimerStatus.Enabled := False;
+  FTimerStatus.OnTimer := TimerStatusTimer;
+
+  FPessoaCtrl := TPessoaController.Create(edtServidorUrl.Text);
+  FEnderecoCtrl := TEnderecoController.Create(edtServidorUrl.Text);
+  ConfigurarListView;
+
+end;
+
+function TfrmPrincipal.IdSelecionado: Int64;
+begin
+  Result := 0;
+  if (lvRegistros.Selected <> nil) then
+    Result := StrToInt64Def(lvRegistros.Selected.Caption, 0);
+end;
+
+procedure TfrmPrincipal.ImportarCsv;
+var
+  LDialogoArquivo: TOpenDialog;
+  LArquivo: string;
+begin
+  AtualizarEstadoTela(etImportando);
+
+  LDialogoArquivo := TOpenDialog.Create(Self);
+  try
+    LDialogoArquivo.Filter := 'CSV/TXT|*.csv;*.txt|Todos|*.*';
+    LDialogoArquivo.Options := LDialogoArquivo.Options + [ofFileMustExist, ofPathMustExist];
+    if not LDialogoArquivo.Execute then
+      Exit;
+
+    LArquivo := LDialogoArquivo.FileName;
+  finally
+    AtualizarEstadoTela(etIdle);
+    FreeAndNil(LDialogoArquivo);
+  end;
+
+  if not FileExists(LArquivo) then
+  begin
+    memoLog.Lines.Add('[ERRO] Arquivo não encontrado: ' + LArquivo);
+    Exit;
+  end;
+
+  memoLog.Lines.Add('[INFO] Importando: ' + LArquivo);
+
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      LInseridos: Integer;
+      LPath: string;
+      LMsg: string;
+    begin
+      LPath := LArquivo;
+      try
+        LInseridos := FPessoaCtrl.ImportarCSV_Stream(LPath, 1000);
+        LMsg := Format('[OK] Importados %d registros.', [LInseridos]);
+
+        TThread.Synchronize(nil,
+          procedure
+          begin
+            memoLog.Lines.Add(LMsg);
+            AtualizarContagem;
+            CarregarLista;
+          end);
+
+      except
+        on E: Exception do
+        begin
+          TThread.Synchronize(nil,
+            procedure
+            begin
+              memoLog.Lines.Add('[ERRO] ' + E.Message);
+            end);
+        end;
+      end;
+    end
+  ).Start;
+end;
+
+function TfrmPrincipal.InputPessoa(
+  out APessoaDto: TPessoaDTO;
+  const APessoaOrigem: TPessoaDTO = nil
+): Boolean;
+var
+  LDocumento: string;
+  LPrimeiroNome: string;
+  LSegundoNome: string;
+  LCep: string;
+  LNaturezaStr: string;
+  LEnderecoDto: TEnderecoDTO;
+begin
+  Result := False;
+  APessoaDto := TPessoaDTO.Create;
+  try
+    if APessoaOrigem <> nil then
+    begin
+      LDocumento := APessoaOrigem.DsDocumento;
+      LPrimeiroNome := APessoaOrigem.NmPrimeiro;
+      LSegundoNome := APessoaOrigem.NmSegundo;
+      if (APessoaOrigem.Enderecos <> nil) and (APessoaOrigem.Enderecos.Count > 0) then
+        LCep := APessoaOrigem.Enderecos[0].DsCep
+      else
+        LCep := EmptyStr;
+      LNaturezaStr := APessoaOrigem.FlNatureza.ToString;
+    end
+    else
+    begin
+      LDocumento := EmptyStr;
+      LPrimeiroNome := EmptyStr;
+      LSegundoNome := EmptyStr;
+      LCep := EmptyStr;
+      LNaturezaStr := '1';
+    end;
+
+    if not InputQuery('Pessoa', 'Documento:', LDocumento) then Exit;
+    if not InputQuery('Pessoa', 'Primeiro nome:', LPrimeiroNome) then Exit;
+    if not InputQuery('Pessoa', 'Segundo nome:', LSegundoNome) then Exit;
+    if not InputQuery('Pessoa', 'CEP:', LCep) then Exit;
+    if not InputQuery('Pessoa', 'Natureza (1=física,2=jurídica):', LNaturezaStr) then Exit;
+
+    APessoaDto.DsDocumento := Trim(LDocumento);
+    APessoaDto.NmPrimeiro := Trim(LPrimeiroNome);
+    APessoaDto.NmSegundo := Trim(LSegundoNome);
+    APessoaDto.FlNatureza := StrToIntDef(Trim(LNaturezaStr), 1);
+    APessoaDto.DtRegistro := EmptyStr;
+
+    APessoaDto.Enderecos.Clear;
+    LEnderecoDto := TEnderecoDTO.Create;
+    LEnderecoDto.DsCep := Trim(LCep);
+    APessoaDto.Enderecos.Add(LEnderecoDto);
+
+    if APessoaOrigem <> nil then
+      APessoaDto.IdPessoa := APessoaOrigem.IdPessoa;
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      FreeAndNil(APessoaDto);
+      raise;
+    end;
+  end;
+end;
+
+procedure TfrmPrincipal.LimpaCampos;
+begin
+  FPagina := 0;
+  FTotalRegistros := 0;
+  FTotalPaginas := 0;
+
+  lvRegistros.Items.BeginUpdate;
+  try
+    lvRegistros.Items.Clear;
+  finally
+    lvRegistros.Items.EndUpdate;
+  end;
+
+  memoLog.Clear;
+
+  lbTotalRegistros.Caption := 'Total: 0   Página 0 de 0';
+
+  AtualizarNavButtons;
+
+  if Assigned(FTimerStatus) then
+    FTimerStatus.Enabled := False;
+
+end;
+
+procedure TfrmPrincipal.TimerStatusTimer(Sender: TObject);
+var
+  LStatus: string;
+begin
+  try
+    LStatus := FEnderecoCtrl.StatusViaCEP;
+
+    memoLog.Lines.Add('[STATUS] ' + LStatus);
+
+    AtualizarProgressBar;
+
+    if not FEnderecoCtrl.VerificaDispararCEP then
+    begin
+      memoLog.Lines.Add('[INFO] Finalizado');
+      pbStatus.Position := 0;
+      FTimerStatus.Enabled := False;
+      AtualizarEstadoTela(etIdle);
+    end;
+
+  except
+    on E: Exception do
+    begin
+      memoLog.Lines.Add('[ERRO] ' + E.Message);
+      pbStatus.Position := 0;
+      FTimerStatus.Enabled := False;
+      AtualizarEstadoTela(etIdle);
+    end;
+  end;
+end;
+
+end.
+

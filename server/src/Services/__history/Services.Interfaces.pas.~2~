@@ -1,0 +1,24 @@
+unit Services.Interfaces;
+
+interface
+
+uses
+  System.Generics.Collections,
+  Common.DTOs.PessoaDTO;
+
+type
+  IPessoaService = interface
+    ['{A1E25433-70C5-4552-9F19-1C062DF9006B}']
+    function Listar(APagina, ATamanho: Integer): TObjectList<TPessoaDTO>;
+    function ObterPorId(AIdPessoa: Int64): TPessoaDTO;
+    function Criar(const APessoa: TPessoaDTO): Int64;
+    procedure Atualizar(const APessoa: TPessoaDTO);
+    procedure Remover(AIdPessoa: Int64);
+    function ImportarCSV(const AConteudoCSV: string; ATamanhoLote: Integer): Integer;
+    procedure DispararAtualizacaoViaCEP;
+    function StatusAtualizacaoViaCEP: string;
+  end;
+
+implementation
+
+end.

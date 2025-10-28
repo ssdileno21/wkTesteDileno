@@ -1,0 +1,10 @@
+unit Domain.Entities.Pessoa;
+
+interface
+
+uses
+  System.Generics.Collections, Domain.Entities.Endereco;
+
+implementation
+
+end.

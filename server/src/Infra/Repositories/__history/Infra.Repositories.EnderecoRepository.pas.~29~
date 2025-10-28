@@ -1,0 +1,104 @@
+unit Infra.Repositories.EnderecoRepository;
+
+interface
+
+uses
+  FireDAC.Comp.Client, Winapi.Windows;
+
+type
+  IEnderecoRepository = interface
+  ['{DC53CFDB-55D1-47DA-AB31-CB716BD8EDCD}']
+    function Inserir(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const ACep: string
+    ): Int64;
+
+    procedure ExcluirPorPessoa(const AConexao: TFDConnection; const AIdPessoa: Int64);
+    procedure ExcluirPorId(const AConexao: TFDConnection; const AIdEndereco: Int64);
+    procedure GravarIntegracao(
+      const AConexao: TFDConnection;
+      const AIdEndereco: Int64;
+      const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+  end;
+
+  TEnderecoRepository = class(TInterfacedObject, IEnderecoRepository)
+  public
+    function Inserir(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const ACep: string
+    ): Int64;
+
+    procedure ExcluirPorPessoa(const AConexao: TFDConnection; const AIdPessoa: Int64);
+    procedure ExcluirPorId(const AConexao: TFDConnection; const AIdEndereco: Int64);
+    procedure GravarIntegracao(
+      const AConexao: TFDConnection;
+      const AIdEndereco: Int64;
+      const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+  end;
+
+implementation
+
+uses
+  Infra.DAO.EnderecoDAO;
+
+{ TEnderecoRepository }
+
+procedure TEnderecoRepository.ExcluirPorId(const AConexao: TFDConnection; const AIdEndereco: Int64);
+var
+  LDAO: TEnderecoDAO;
+begin
+  LDAO := TEnderecoDAO.Create(AConexao);
+  try
+    LDAO.ExcluirPorId(AIdEndereco);
+  finally
+    LDAO.Free;
+  end;
+end;
+
+procedure TEnderecoRepository.ExcluirPorPessoa(const AConexao: TFDConnection; const AIdPessoa: Int64);
+var
+  LDAO: TEnderecoDAO;
+begin
+  LDAO := TEnderecoDAO.Create(AConexao);
+  try
+    LDAO.ExcluirPorPessoa(AIdPessoa);
+  finally
+    LDAO.Free;
+  end;
+end;
+
+procedure TEnderecoRepository.GravarIntegracao(
+  const AConexao: TFDConnection;
+  const AIdEndereco: Int64;
+  const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+var
+  LDAO: TEnderecoDAO;
+begin
+  LDAO := TEnderecoDAO.Create(AConexao);
+  try
+    OutputDebugString(pchar('Chamando DAO.GravarIntegracao'));
+    LDAO.GravarIntegracao(AIdEndereco, AUf, ACidade, ABairro, ALogradouro, AComplemento);
+  finally
+    LDAO.Free;
+  end;
+end;
+
+function TEnderecoRepository.Inserir(
+  const AConexao: TFDConnection;
+  const AIdPessoa: Int64;
+  const ACep: string): Int64;
+var
+  DAO: TEnderecoDAO;
+begin
+  DAO := TEnderecoDAO.Create(AConexao);
+  try
+    Result := DAO.InserirEndereco(AIdPessoa, ACep);
+  finally
+    DAO.Free;
+  end;
+end;
+
+end.
+

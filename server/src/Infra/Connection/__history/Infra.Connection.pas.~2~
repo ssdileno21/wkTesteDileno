@@ -1,0 +1,73 @@
+unit Infra.Connection;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, FireDAC.Stan.Intf, FireDAC.Stan.Option,
+  FireDAC.Stan.Error, FireDAC.UI.Intf, FireDAC.Phys.Intf, FireDAC.Stan.Def,
+  FireDAC.Stan.Pool, FireDAC.Stan.Async, FireDAC.Phys, FireDAC.Phys.PGDef,
+  FireDAC.VCLUI.Wait, FireDAC.Comp.UI, FireDAC.Phys.PG, Data.DB,
+  FireDAC.Comp.Client, Winapi.Windows;
+
+type
+  TDMConnection = class(TDataModule)
+    FDConn: TFDConnection;
+    FDPhysPgDriverLink: TFDPhysPgDriverLink;
+    FDGUIxWaitCursor: TFDGUIxWaitCursor;
+    procedure DataModuleCreate(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    function GetNewConnection: TFDConnection;
+  end;
+
+var
+  DMConnection: TDMConnection;
+
+implementation
+
+{%CLASSGROUP 'Vcl.Controls.TControl'}
+
+{$R *.dfm}
+
+procedure TDMConnection.DataModuleCreate(Sender: TObject);
+ var
+  Bin: string;
+begin
+  Bin := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
+
+  SetDllDirectory(PChar(Bin));
+
+  FDPhysPgDriverLink.VendorHome := EmptyStr;
+  FDPhysPgDriverLink.VendorLib  := Bin + 'libpq.dll';
+
+  FDConn.Params.Clear;
+  FDConn.Params.DriverID := 'PG';
+  FDConn.Params.Add('Server=localhost');
+  FDConn.Params.Add('Port=5432');
+  FDConn.Params.Database := 'wkTesteDileno';
+  FDConn.Params.UserName := 'postgres';
+  FDConn.Params.Password := '123';
+  FDConn.Params.Add('CharacterSet=UTF8');
+  FDConn.LoginPrompt := False;
+  FDConn.Connected := True;
+end;
+
+function TDMConnection.GetNewConnection: TFDConnection;
+var
+  Conn: TFDConnection;
+begin
+  Conn := TFDConnection.Create(nil);
+  Conn.DriverName := 'PG';
+  Conn.Params.Values['Database'] := 'wkTesteDileno';
+  Conn.Params.Values['User_Name'] := 'postgres';
+  Conn.Params.Values['Password'] := '123';
+  Conn.Params.Values['Server'] := 'localhost';
+  Conn.Params.Values['Port'] := '5432';
+  Conn.LoginPrompt := False;
+  Conn.Connected := True;
+  Result := Conn;
+end;
+
+end.

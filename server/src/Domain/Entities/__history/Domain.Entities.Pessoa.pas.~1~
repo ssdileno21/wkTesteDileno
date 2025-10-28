@@ -1,0 +1,7 @@
+unit Domain.Entities.Pessoa;
+
+interface
+
+implementation
+
+end.

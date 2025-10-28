@@ -1,0 +1,330 @@
+unit Api.ServerMethods;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, System.JSON, System.Generics.Collections,
+  Datasnap.DSServer, Datasnap.DSAuth,
+  REST.Json,
+  Common.DTOs.PessoaDTO,
+  Services.Interfaces,
+  Services.PessoaService,
+  Services.EnderecoService,
+  Infra.Connection,
+  Infra.Repositories.PessoaRepository,
+  Infra.Repositories.EnderecoRepository,
+  System.NetEncoding,
+  Services.ServiceRegistry,
+  Winapi.Windows;
+
+type
+{$METHODINFO ON}
+  TServerMethods1 = class(TDataModule)
+  private
+    FDMConn : TDMConnection;
+    FService : IPessoaService;
+    FPessoaRepo : IPessoaRepository;
+    FEndRepo : IEnderecoRepository;
+    FEnderecoService: TEnderecoService;
+
+    procedure EnsureService;
+    procedure EnsureEnderecoService;
+
+    function JsonError(const AMsg: string): string;
+    function DecodeUrlParam(const AJsonPessoa: string): string;
+
+  public
+    constructor Create(AOwner: TComponent); override;
+    function Status: string;
+
+    function Pessoa_List(APagina, ATamanho: Integer): string;
+    function Pessoa_Get(AIdPessoa: Int64): string;
+    function Pessoa_Create(const AJsonPessoa: string): Int64;
+    function Pessoa_Update(const AJsonPessoa: string): Boolean;
+    function Pessoa_Delete(AIdPessoa: Int64): Boolean;
+    function Pessoa_Count: Integer;
+
+    function Pessoa_ImportarCSV(const ACsv: string; ATamanhoLote: Integer = 1000): Integer;
+    function Pessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+    function updatePessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+    function acceptPessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+
+    function TestarViaCep: string;
+    function ViaCEP_Processados: Integer;
+    function ViaCEP_Total: Integer;
+
+  published
+    procedure ViaCEP_Disparar;
+
+    function ViaCEP_Status: string;
+    function DispararCepEstaEmExecucao: Boolean;
+    function ViaCEP_ProcessadosIgualTotal: Boolean;
+
+    function EchoString(Value: string): string;
+    function ReverseString(Value: string): string;
+  end;
+{$METHODINFO OFF}
+
+implementation
+
+{$R *.dfm}
+
+uses
+  System.StrUtils, System.Net.HttpClient;
+
+procedure TServerMethods1.EnsureEnderecoService;
+begin
+  if Assigned(FEnderecoService) then
+    Exit;
+
+  FEndRepo := TEnderecoRepository.Create;
+  FEnderecoService := TEnderecoService.Create(FEndRepo);
+end;
+
+procedure TServerMethods1.EnsureService;
+begin
+  if Assigned(FService) then
+    Exit;
+
+  FDMConn := TDMConnection.Create(nil);
+  FPessoaRepo := TPessoaRepository.Create;
+  FService := TPessoaService.Create(FDMConn.FDConn, FPessoaRepo);
+end;
+
+function TServerMethods1.JsonError(const AMsg: string): string;
+var
+  LErroJson: string;
+begin
+  LErroJson := StringReplace(AMsg, '"', '\"', [rfReplaceAll]);
+  Result := Format('{"error":"%s"}', [LErroJson]);
+end;
+
+function TServerMethods1.Status: string;
+begin
+  Result := 'OK ' + DateTimeToStr(Now);
+end;
+
+function TServerMethods1.TestarViaCep: string;
+var
+  Http: THTTPClient;
+  Resp: IHTTPResponse;
+begin
+  Http := THTTPClient.Create;
+  try
+    Resp := Http.Get('https://viacep.com.br/ws/01001000/json/');
+  finally
+    FreeAndNil(Http);
+  end;
+end;
+
+function TServerMethods1.Pessoa_List(APagina, ATamanho: Integer): string;
+var
+  LLista: TObjectList<TPessoaDTO>;
+begin
+  try
+    EnsureService;
+    LLista := FService.Listar(APagina, ATamanho);
+    try
+      Result := TJson.ObjectToJsonString(LLista);
+    finally
+      FreeAndNil(LLista);
+    end;
+  except
+    on E: Exception do
+      Result := JsonError(E.Message);
+  end;
+end;
+
+function TServerMethods1.Pessoa_Get(AIdPessoa: Int64): string;
+var
+  LDto: TPessoaDTO;
+begin
+  try
+    EnsureService;
+    LDto := FService.ObterPorId(AIdPessoa);
+    try
+      if Assigned(LDto) then
+        Result := TJson.ObjectToJsonString(LDto)
+      else
+        Result := 'null';
+    finally
+      FreeAndNil(LDto);
+    end;
+  except
+    on E: Exception do
+      Result := JsonError(E.Message);
+  end;
+end;
+
+function TServerMethods1.Pessoa_Count: Integer;
+begin
+  EnsureService;
+  Result := FService.ContarPessoas;
+end;
+
+function TServerMethods1.Pessoa_Create(const AJsonPessoa: string): Int64;
+var
+  LDto: TPessoaDTO;
+  LJson: string;
+begin
+  EnsureService;
+  LJson := DecodeUrlParam(AJsonPessoa);
+  LDto := TJson.JsonToObject<TPessoaDTO>(LJson);
+  try
+    Result := FService.Criar(LDto);
+  finally
+    FreeAndNil(LDto);
+  end;
+end;
+
+function TServerMethods1.Pessoa_Update(const AJsonPessoa: string): Boolean;
+var
+  LPessoaDto: TPessoaDTO;
+  LJson: string;
+begin
+  EnsureService;
+  Result := False;
+  LJson := DecodeUrlParam(AJsonPessoa);
+  LPessoaDto := TJson.JsonToObject<TPessoaDTO>(LJson);
+  try
+    FService.Atualizar(LPessoaDto);
+    Result := True;
+  finally
+    FreeAndNil(LPessoaDto);
+  end;
+end;
+
+function TServerMethods1.Pessoa_Delete(AIdPessoa: Int64): Boolean;
+begin
+  EnsureService;
+  FService.Remover(AIdPessoa);
+  Result := True;
+end;
+
+function TServerMethods1.Pessoa_ImportarCSV(const ACsv: string; ATamanhoLote: Integer): Integer;
+var
+  LCsv: string;
+begin
+  EnsureService;
+  LCsv := DecodeUrlParam(ACsv);
+  Result := FService.ImportarCSV(LCsv, ATamanhoLote);
+end;
+
+function TServerMethods1.Pessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+var
+  LCsv: TStringStream;
+begin
+  EnsureService;
+
+  if ATamanhoLote <= 0 then
+    ATamanhoLote := 1000;
+
+  LCsv := TStringStream.Create('', TEncoding.UTF8);
+  try
+    if Assigned(AStream) then
+    begin
+      AStream.Position := 0;
+      LCsv.CopyFrom(AStream, 0);
+    end;
+
+    Result := FService.ImportarCSV(LCsv.DataString, ATamanhoLote);
+  finally
+    FreeAndNil(LCsv);
+  end;
+end;
+
+function TServerMethods1.updatePessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+begin
+  Result := Pessoa_ImportarCSV_Stream(ATamanhoLote, AStream);
+end;
+
+function TServerMethods1.acceptPessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream): Integer;
+begin
+  Result := Pessoa_ImportarCSV_Stream(ATamanhoLote, AStream);
+end;
+
+procedure TServerMethods1.ViaCEP_Disparar;
+begin
+  try
+    Services.ServiceRegistry.TServiceRegistry.GetEnderecoService.DispararAtualizacaoViaCEP;
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('Erro ao disparar CEP: ' + E.Message));
+      raise;
+    end;
+  end;
+end;
+
+function TServerMethods1.ViaCEP_Processados: Integer;
+begin
+  Result := Services.ServiceRegistry.TServiceRegistry.GetEnderecoService.ViaCepTotalProcessados;
+end;
+
+function TServerMethods1.ViaCEP_ProcessadosIgualTotal: Boolean;
+begin
+  try
+    EnsureEnderecoService;
+    Result := FEnderecoService.ViaCepTotalProcessados = FEnderecoService.ViaCepTotalProcessados;
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(pchar('Erro em ViaCEP_ProcessadosIgualTotal: ' + E.Message));
+      raise Exception.Create('Erro interno ao comparar processados e total');
+    end;
+  end;
+end;
+
+function TServerMethods1.ViaCEP_Status: string;
+begin
+  try
+    Result := Services.ServiceRegistry.TServiceRegistry.GetEnderecoService.StatusAtualizacaoViaCEP;
+  except
+    on E: Exception do
+      Result := JsonError('Não foi possível obter o status.');
+  end;
+end;
+
+function TServerMethods1.ViaCEP_Total: Integer;
+begin
+  Result := Services.ServiceRegistry.TServiceRegistry.GetEnderecoService.ViaCepTotalEnderecos;
+end;
+
+constructor TServerMethods1.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  OutputDebugString('*** TServerMethods1 foi criado ***');
+end;
+
+function TServerMethods1.DecodeUrlParam(const AJsonPessoa: string): string;
+begin
+  Result := TNetEncoding.URL.Decode(AJsonPessoa);
+  Result := StringReplace(Result, '+', ' ', [rfReplaceAll]);
+end;
+
+function TServerMethods1.DispararCepEstaEmExecucao: Boolean;
+begin
+  try
+    EnsureEnderecoService;
+    Result := FEnderecoService.DispararCepEstaEmExecucao;
+  except
+    on E: Exception do
+    begin
+      OutputDebugString(PChar('Erro em DispararCepEstaEmExecucao: ' + E.Message));
+      raise;
+    end;
+  end;
+end;
+
+function TServerMethods1.EchoString(Value: string): string;
+begin
+  Result := Value;
+end;
+
+function TServerMethods1.ReverseString(Value: string): string;
+begin
+  Result := System.StrUtils.ReverseString(Value);
+end;
+
+end.
+

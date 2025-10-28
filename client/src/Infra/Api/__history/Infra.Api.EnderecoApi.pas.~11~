@@ -1,0 +1,59 @@
+unit Infra.Api.EnderecoApi;
+
+interface
+
+type
+  TEnderecoApi = class
+  public
+    procedure DispararViaCEP;
+    function StatusViaCEP: string;
+    function VerificaDispararCEP: Boolean;
+    function ProcessadosIgualTotal: Boolean;
+    function ViaCEP_Processados: Integer;
+    function ViaCEP_Total: Integer;
+  end;
+
+implementation
+
+uses
+  ClientModuleUnit1, System.SysUtils;
+
+{ TEnderecoApi }
+
+procedure TEnderecoApi.DispararViaCEP;
+begin
+  ClientModule1.ServerMethods1Client.ViaCEP_Disparar;
+end;
+
+function TEnderecoApi.ProcessadosIgualTotal: Boolean;
+begin
+  Result := ClientModule1.ServerMethods1Client.ViaCEP_ProcessadosIgualTotal;
+end;
+
+function TEnderecoApi.StatusViaCEP: string;
+begin
+  if not Assigned(ClientModule1.ServerMethods1Client) then
+    Exit(EmptyStr);
+  Result := ClientModule1.ServerMethods1Client.ViaCEP_Status;
+end;
+
+function TEnderecoApi.VerificaDispararCEP: Boolean;
+begin
+  if not Assigned(ClientModule1.ServerMethods1Client) then
+    Exit(False);
+
+  Result := ClientModule1.ServerMethods1Client.DispararCepEstaEmExecucao;
+end;
+
+function TEnderecoApi.ViaCEP_Processados: Integer;
+begin
+  Result := ClientModule1.ServerMethods1Client.ViaCEP_Processados;
+end;
+
+function TEnderecoApi.ViaCEP_Total: Integer;
+begin
+  Result := ClientModule1.ServerMethods1Client.ViaCEP_Total;
+end;
+
+end.
+

@@ -1,0 +1,13 @@
+object ClientModule1: TClientModule1
+  Height = 339
+  Width = 519
+  PixelsPerInch = 120
+  object DSRestConnection1: TDSRestConnection
+    Host = 'localhost'
+    Port = 8080
+    LoginPrompt = False
+    Left = 60
+    Top = 50
+    UniqueId = '{9B50288F-7B68-4EBA-94CB-5EE3F6E39881}'
+  end
+end

@@ -1,0 +1,418 @@
+unit Services.EnderecoService;
+
+interface
+
+uses
+  System.SysUtils,
+  System.Generics.Collections,
+  System.Classes,
+  System.Threading,
+  System.JSON,
+  System.SyncObjs,
+  FireDAC.Comp.Client,
+  Common.DTOs.EnderecoDTO,
+  Infra.Repositories.PessoaRepository,
+  Infra.Repositories.EnderecoRepository,
+  Domain.Entities.Pessoa,
+  Services.Interfaces,
+  System.Net.HttpClient,
+  Infra.Connection,
+  Winapi.Windows;
+
+type
+  TEnderecoService = class(TInterfacedObject, IEnderecoService)
+  private
+    FDMConn : TDMConnection;
+    FEnderecoRepo: IEnderecoRepository;
+    FStatus: string;
+    FTotalEnderecosProcessados: Integer;
+    FTotalEnderecos: Integer;
+    FJobRunning: Integer;
+    FFalhasSeguidas: Integer;
+    FUltimaRequisicaoMs: Cardinal;
+    FCritSec: TCriticalSection;
+    
+    function ViaCepDisponivel(out AMotivo: string): Boolean;
+    function TentarLerViaCepJson(const AJson: string;
+      out AUf, ACidade, ABairro, ALogradouro, AComplemento: string
+    ): Boolean;
+    function MontarUrlViaCep(const ACep8: string): string;
+
+    function GetProcessadosViaCep: Integer;
+    function GetTotalEnderecosViaCep: Integer;
+
+    procedure ProcessarPaginaDeEnderecos(const ADeslocamento, ATamanho: Integer;
+      const AHttp: THTTPClient; var AProcessados: Integer;
+      const AConn: TFDConnection; const AEnderecoRepo: IEnderecoRepository
+    );
+    procedure SetStatus(const AValue: string);
+    procedure AguardaProximaRequisicao;
+
+  public
+    constructor Create(AEnderecoRepo: IEnderecoRepository);
+    destructor Destroy;override;
+    procedure DispararAtualizacaoViaCEP;
+    function StatusAtualizacaoViaCEP: string;
+    function DispararCepEstaEmExecucao: Boolean;
+
+    property ViaCepTotalProcessados: Integer read GetProcessadosViaCep;
+    property ViaCepTotalEnderecos: Integer read GetTotalEnderecosViaCep;
+  end;
+
+  const
+    C_MAX_REQS_POR_SEGUNDO = 5;
+    C_INTERVALO_MS_ENTRE_REQS = 1000 div C_MAX_REQS_POR_SEGUNDO;
+    C_MAX_FALHAS_SEGUIDAS = 10;
+    C_COMMIT_A_CADA_REGISTROS = 500;
+
+implementation
+
+uses
+  System.Net.URLClient, Data.DB, System.StrUtils, Infra.DAO.EnderecoDAO,
+  FireDAC.Stan.Param;
+
+const
+  C_TAM_PAGINA = 1000;
+  C_TIMEOUT_MS = 15000;
+  C_PASSO_STATUS = 200;
+
+
+{ TEnderecoService }
+
+procedure TEnderecoService.AguardaProximaRequisicao;
+var
+  LAgora, LEspera: Cardinal;
+begin
+  LAgora := GetTickCount;
+  LEspera := C_INTERVALO_MS_ENTRE_REQS;
+
+  if (FUltimaRequisicaoMs > 0) then
+  begin
+    if (LAgora - FUltimaRequisicaoMs < LEspera) then
+      Sleep(LEspera - (LAgora - FUltimaRequisicaoMs));
+  end;
+
+  FUltimaRequisicaoMs := GetTickCount;
+end;
+
+constructor TEnderecoService.Create(AEnderecoRepo: IEnderecoRepository);
+begin
+  inherited Create;
+  FEnderecoRepo := AEnderecoRepo;
+  FDMConn := TDMConnection.Create(nil);
+  FJobRunning := 0;
+  FUltimaRequisicaoMs := 0;
+  FCritSec := TCriticalSection.Create;
+end;
+
+destructor TEnderecoService.Destroy;
+begin
+  FDMConn.Free;
+  FCritSec.Free;
+  inherited;
+end;
+
+procedure TEnderecoService.DispararAtualizacaoViaCEP;
+begin
+  SetStatus('iniciando atualização de endereços...');
+
+  if TInterlocked.CompareExchange(FJobRunning, 1, 0) <> 0 then
+  begin
+    SetStatus('ViaCEP: já em execução');
+    Exit;
+  end;
+
+  TTask.Run(
+    procedure
+    var
+      Conn: TFDConnection;
+      Http: THTTPClient;
+      DAO: TEnderecoDAO;
+      Offset, Processados: Integer;
+      Motivo: string;
+      TransacaoAberta: Boolean;
+    begin
+      Conn := nil;
+      Http := nil;
+      TransacaoAberta := False;
+
+      try
+        Conn := FDMConn.GetNewConnection;
+        Conn.ResourceOptions.AutoConnect := False;
+        Conn.ResourceOptions.AutoReconnect := False;
+        Conn.ResourceOptions.SilentMode := True;
+        Conn.TxOptions.AutoCommit := False;
+
+        Conn.StartTransaction;
+        TransacaoAberta := True;
+
+        if not ViaCepDisponivel(Motivo) then
+        begin
+          SetStatus('ViaCEP: indisponível - ' + Motivo);
+          OutputDebugString(PChar('ViaCEP: indisponível - ' + Motivo));
+          Exit;
+        end;
+
+        Http := THTTPClient.Create;
+        Http.ConnectionTimeout := 10000;
+        Http.ResponseTimeout := 10000;
+
+        DAO := TEnderecoDAO.Create(Conn);
+        try
+          FTotalEnderecos := DAO.Contar;;
+          FTotalEnderecosProcessados := 0;
+        finally
+          FreeAndNil(DAO);
+        end;
+
+        Offset := 0;
+        Processados := 0;
+
+        while Offset < FTotalEnderecos do
+        begin
+          ProcessarPaginaDeEnderecos(Offset, 100, Http, Processados, Conn, FEnderecoRepo);
+          Inc(Offset, 100);
+        end;
+
+        SetStatus(Format('ViaCEP: finalizado - %d/%d registros.', [Processados, FTotalEnderecos]));
+
+        if TransacaoAberta and Conn.InTransaction then
+          Conn.Commit;
+      except
+        on E: Exception do
+        begin
+          SetStatus('ViaCEP: erro inesperado - ' + E.Message);
+          if TransacaoAberta and Conn.InTransaction then
+            Conn.Rollback;
+        end;
+      end;
+
+      try
+        if Assigned(Http) then
+          FreeAndNil(Http);
+        if Assigned(Conn) then
+        begin
+          if Conn.InTransaction then
+            Conn.Rollback;
+          Conn.Connected := False;
+          FreeAndNil(Conn);
+        end;
+      except
+        on E: Exception do
+          SetStatus('ViaCEP: erro ao liberar recursos - ' + E.Message);
+      end;
+
+      TInterlocked.Exchange(FJobRunning, 0);
+    end
+  );
+end;
+
+function TEnderecoService.DispararCepEstaEmExecucao: Boolean;
+begin
+  Result := TInterlocked.CompareExchange(FJobRunning, 0, 0) = 1;
+end;
+
+function TEnderecoService.GetProcessadosViaCep: Integer;
+begin
+  Result := FTotalEnderecosProcessados;
+end;
+
+function TEnderecoService.GetTotalEnderecosViaCep: Integer;
+begin
+  Result := FTotalEnderecos;
+end;
+
+function TEnderecoService.MontarUrlViaCep(const ACep8: string): string;
+begin
+  Result := Format('https://viacep.com.br/ws/%s/json/', [ACep8]);
+end;
+
+procedure TEnderecoService.ProcessarPaginaDeEnderecos(
+  const ADeslocamento, ATamanho: Integer;
+  const AHttp: THTTPClient; var AProcessados: Integer;
+  const AConn: TFDConnection; const AEnderecoRepo: IEnderecoRepository);
+var
+  LQuery: TFDQuery;
+  IdEnd: Int64;
+  DsCep, Cep8, Url, Json: string;
+  Resp: IHTTPResponse;
+  Uf, Cidade, Bairro, Logr, Compl: string;
+  HttpCode: Integer;
+  LEndDAO: TEnderecoDAO;
+  Contador: Integer;  
+begin
+  LEndDAO := TEnderecoDAO.Create(AConn);
+  Contador := 0;
+
+  try
+    LQuery := LEndDAO.AbrirEnderecosPaginado(ADeslocamento, ATamanho);
+    try
+      while not LQuery.Eof do
+      begin
+        try
+          IdEnd := LQuery.FieldByName('idendereco').AsLargeInt;
+          DsCep := LQuery.FieldByName('dscep').AsString;
+          Cep8 := StringReplace(DsCep, '-', '', [rfReplaceAll]);
+
+          if Length(Cep8) <> 8 then
+          begin
+            SetStatus(Format('CEP inválido: %s (IdEndereco=%d)', [Cep8, IdEnd]));
+            Inc(FFalhasSeguidas);
+            Continue;
+          end;
+
+          if Length(Cep8) = 8 then
+          begin
+            Url := MontarUrlViaCep(Cep8);
+            AguardaProximaRequisicao;
+            Resp := AHttp.Get(Url);
+            HttpCode := Resp.StatusCode;
+
+            if HttpCode = 200 then
+            begin
+              FFalhasSeguidas := 0;
+              Json := Resp.ContentAsString(TEncoding.UTF8);
+              if TentarLerViaCepJson(Json, Uf, Cidade, Bairro, Logr, Compl) then
+              begin
+                OutputDebugString(PChar(Format('Salvando endereço %d - %s, %s, %s, %s, %s', [
+                  IdEnd, Uf, Cidade, Bairro, Logr, Compl])));
+
+                AEnderecoRepo.GravarIntegracao(AConn, IdEnd, Uf, Cidade, Bairro, Logr, Compl);
+                Inc(AProcessados);
+                Inc(Contador);
+                Inc(FTotalEnderecosProcessados);
+                OutputDebugString(PChar('Processados até aqui: ' + FTotalEnderecosProcessados.ToString));
+              end else
+                Inc(FFalhasSeguidas);
+            end;
+          end;
+        except
+          on E: Exception do
+          begin
+            Inc(FFalhasSeguidas);
+            OutputDebugString(PChar('[Erro] ' + E.ClassName + ': ' + E.Message));
+            SetStatus(Format('[%s] Erro: %s', [TimeToStr(Now), E.Message]));
+            try
+              if AConn.Connected and AConn.InTransaction then
+                AConn.Rollback;
+            except
+              on E2: Exception do
+                SetStatus('Erro ao tentar rollback parcial: ' + E2.Message);
+            end;
+          end;
+        end;
+
+        if FFalhasSeguidas >= C_MAX_FALHAS_SEGUIDAS then
+        begin
+          SetStatus('Muitas falhas consecutivas, pausando processamento...');
+          Sleep(5000);
+          FFalhasSeguidas := 0;
+        end;
+
+        if (Contador > 0) and (Contador mod C_COMMIT_A_CADA_REGISTROS = 0) then
+        begin
+          try
+            OutputDebugString(pchar('Commit realizado'));
+            if AConn.Connected and AConn.InTransaction then
+              AConn.Commit;
+          except
+            on E: Exception do
+              SetStatus('Erro no commit parcial: ' + E.Message);
+          end;
+        end;
+
+        LQuery.Next;
+      end;
+
+    finally
+      LQuery.Close;
+      LQuery.Connection := nil;
+      FreeAndNil(LQuery);
+    end;
+
+    try
+      OutputDebugString(pchar('Commit final realizado'));
+      if AConn.Connected and AConn.InTransaction then
+        AConn.Commit;
+    except
+      on E: Exception do
+        SetStatus('Erro no commit final: ' + E.Message);
+    end;
+
+  finally
+    FreeAndNil(LEndDAO);
+  end;
+end;
+
+procedure TEnderecoService.SetStatus(const AValue: string);
+begin
+  FCritSec.Acquire;
+  try
+    FStatus := AValue;
+  finally
+    FCritSec.Release;
+  end;
+end;
+
+function TEnderecoService.StatusAtualizacaoViaCEP: string;
+const
+  STATUS_LABEL: array[Boolean] of string = ('[FINALIZADO]', '[EM EXECUCAO]');
+begin
+  FCritSec.Acquire;
+  try
+    Result := Format('%s Processados: %d/%d - %s',
+      [STATUS_LABEL[DispararCepEstaEmExecucao],
+       FTotalEnderecosProcessados,
+       FTotalEnderecos,
+       FStatus]);
+  finally
+    FCritSec.Release;
+  end;
+end;
+
+function TEnderecoService.TentarLerViaCepJson(const AJson: string; out AUf,
+  ACidade, ABairro, ALogradouro, AComplemento: string): Boolean;
+var
+  Obj: TJSONObject;
+begin
+  Result := False;
+  Obj := TJSONObject.ParseJSONValue(AJson) as TJSONObject;
+  if not Assigned(Obj) then
+    Exit;
+
+  try
+    if Obj.GetValue('erro') <> nil then
+      Exit;
+
+    if Obj.TryGetValue<string>('uf', AUf) and
+       Obj.TryGetValue<string>('localidade', ACidade) and
+       Obj.TryGetValue<string>('bairro', ABairro) and
+       Obj.TryGetValue<string>('logradouro', ALogradouro) and
+       Obj.TryGetValue<string>('complemento', AComplemento) then
+    Result := True;
+  finally
+    FreeAndNil(Obj);
+  end;
+end;
+
+function TEnderecoService.ViaCepDisponivel(out AMotivo: string): Boolean;
+var
+  Http: THTTPClient;
+  Resp: IHTTPResponse;
+begin
+  Result := False;
+  AMotivo := EmptyStr;
+  Http := THTTPClient.Create;
+  try
+    Resp := Http.Get('https://viacep.com.br/ws/01001000/json/');
+    Result := (Resp.StatusCode = 200);
+    if not Result then
+      AMotivo := Resp.StatusText;
+  except
+    on E: Exception do
+      AMotivo := E.Message;
+  end;
+  FreeAndNil(Http);
+end;
+
+end.

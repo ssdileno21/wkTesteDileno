@@ -1,0 +1,15 @@
+program client;
+
+uses
+  Vcl.Forms,
+  View.Principal in 'src\View\View.Principal.pas' {Form1},
+  Controllers.PessoaController in 'src\Controller\Controllers.PessoaController.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TForm1, Form1);
+  Application.Run;
+end.

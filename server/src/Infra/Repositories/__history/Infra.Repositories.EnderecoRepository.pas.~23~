@@ -1,0 +1,64 @@
+unit Infra.Repositories.EnderecoRepository;
+
+interface
+
+uses
+  FireDAC.Comp.Client;
+
+type
+  IEnderecoRepository = interface
+  ['{9C3068F6-1CFB-4F27-8B41-13C8F1CF194E}']
+    function Inserir(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const ACep: string
+    ): Int64;
+    procedure ExcluirPorPessoa(const AConexao: TFDConnection; const AIdPessoa: Int64);
+    procedure ExcluirPorId(const AConexao: TFDConnection; const AIdEndereco: Int64);
+    procedure GravarIntegracao(
+      const AConexao: TFDConnection;
+      const AIdEndereco: Int64;
+      const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+  end;
+
+  TEnderecoRepository = class(TInterfacedObject, IEnderecoRepository)
+  public
+    function Inserir(
+      const AConexao: TFDConnection;
+      const AIdPessoa: Int64;
+      const ACep: string
+    ): Int64;
+    procedure ExcluirPorPessoa(const AConexao: TFDConnection; const AIdPessoa: Int64);
+    procedure ExcluirPorId(const AConexao: TFDConnection; const AIdEndereco: Int64);
+    procedure GravarIntegracao(
+      const AConexao: TFDConnection;
+      const AIdEndereco: Int64;
+      const AUf, ACidade, ABairro, ALogradouro, AComplemento: string);
+  end;
+
+implementation
+
+uses
+  Infra.DAO.EnderecoDAO;
+
+{ TEnderecoRepository }
+
+procedure TEnderecoRepository.ExcluirPorId(const AConexao: TFDConnection;
+  const AIdEndereco: Int64);
+begin
+  TEnderecoDAO.ExcluirPorId(AConexao, AIdEndereco);
+end;
+
+procedure TEnderecoRepository.ExcluirPorPessoa(const AConexao: TFDConnection;
+  const AIdPessoa: Int64);
+begin
+  TEnderecoDAO.ExcluirPorPessoa(AConexao, AIdPessoa);
+end;
+
+function TEnderecoRepository.Inserir(const AConexao: TFDConnection;
+  const AIdPessoa: Int64; const ACep: string): Int64;
+begin
+  Result := TEnderecoDAO.InserirEndereco(AConexao, AIdPessoa, ACep);
+end;
+
+end.

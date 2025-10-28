@@ -1,0 +1,422 @@
+//
+// Created by the DataSnap proxy generator.
+// 26/10/2025 21:12:45
+// 
+
+unit ClientClassesUnit1;
+
+interface
+
+uses System.JSON, Datasnap.DSProxyRest, Datasnap.DSClientRest, Data.DBXCommon, Data.DBXClient, Data.DBXDataSnap, Data.DBXJSON, Datasnap.DSProxy, System.Classes, System.SysUtils, Data.DB, Data.SqlExpr, Data.DBXDBReaders, Data.DBXCDSReaders, Data.DBXJSONReflect,
+Winapi.Windows;
+
+type
+  TServerMethods1Client = class(TDSAdminRestClient)
+  private
+    FStatusCommand: TDSRestCommand;
+    FPessoa_ListCommand: TDSRestCommand;
+    FPessoa_GetCommand: TDSRestCommand;
+    FPessoa_CreateCommand: TDSRestCommand;
+    FPessoa_UpdateCommand: TDSRestCommand;
+    FPessoa_DeleteCommand: TDSRestCommand;
+    FPessoa_CountCommand: TDSRestCommand;
+    FPessoa_ImportarCSVCommand: TDSRestCommand;
+    FPessoa_ImportarCSV_StreamCommand: TDSRestCommand;
+    FupdatePessoa_ImportarCSV_StreamCommand: TDSRestCommand;
+    FacceptPessoa_ImportarCSV_StreamCommand: TDSRestCommand;
+    FTestarViaCepCommand: TDSRestCommand;
+    FViaCEP_DispararCommand: TDSRestCommand;
+    FViaCEP_StatusCommand: TDSRestCommand;
+    FEchoStringCommand: TDSRestCommand;
+    FReverseStringCommand: TDSRestCommand;
+    FDispararCepEstaEmExecucaoCommand: TDSRestCommand;
+  public
+    constructor Create(ARestConnection: TDSRestConnection); overload;
+    constructor Create(ARestConnection: TDSRestConnection; AInstanceOwner: Boolean); overload;
+    destructor Destroy; override;
+    function Status(const ARequestFilter: string = ''): string;
+    function Pessoa_List(APagina: Integer; ATamanho: Integer; const ARequestFilter: string = ''): string;
+    function Pessoa_Get(AIdPessoa: Int64; const ARequestFilter: string = ''): string;
+    function Pessoa_Create(AJsonPessoa: string; const ARequestFilter: string = ''): Int64;
+    function Pessoa_Update(AJsonPessoa: string; const ARequestFilter: string = ''): Boolean;
+    function Pessoa_Delete(AIdPessoa: Int64; const ARequestFilter: string = ''): Boolean;
+    function Pessoa_Count(const ARequestFilter: string = ''): Integer;
+    function Pessoa_ImportarCSV(ACsv: string; ATamanhoLote: Integer; const ARequestFilter: string = ''): Integer;
+    function Pessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string = ''): Integer;
+    function updatePessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string = ''): Integer;
+    function acceptPessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string = ''): Integer;
+    function TestarViaCep(const ARequestFilter: string = ''): string;
+    procedure ViaCEP_Disparar;
+    function ViaCEP_Status(const ARequestFilter: string = ''): string;
+    function EchoString(Value: string; const ARequestFilter: string = ''): string;
+    function ReverseString(Value: string; const ARequestFilter: string = ''): string;
+    function DispararCepEstaEmExecucao: Boolean;
+  end;
+
+const
+  TServerMethods1_Status: array [0..0] of TDSRestParameterMetaData =
+  (
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_Pessoa_List: array [0..2] of TDSRestParameterMetaData =
+  (
+    (Name: 'APagina'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: 'ATamanho'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_Pessoa_Get: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'AIdPessoa'; Direction: 1; DBXType: 18; TypeName: 'Int64'),
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_Pessoa_Create: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'AJsonPessoa'; Direction: 1; DBXType: 26; TypeName: 'string'),
+    (Name: ''; Direction: 4; DBXType: 18; TypeName: 'Int64')
+  );
+
+  TServerMethods1_Pessoa_Update: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'AJsonPessoa'; Direction: 1; DBXType: 26; TypeName: 'string'),
+    (Name: ''; Direction: 4; DBXType: 4; TypeName: 'Boolean')
+  );
+
+  TServerMethods1_Pessoa_Delete: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'AIdPessoa'; Direction: 1; DBXType: 18; TypeName: 'Int64'),
+    (Name: ''; Direction: 4; DBXType: 4; TypeName: 'Boolean')
+  );
+
+  TServerMethods1_Pessoa_Count: array [0..0] of TDSRestParameterMetaData =
+  (
+    (Name: ''; Direction: 4; DBXType: 6; TypeName: 'Integer')
+  );
+
+  TServerMethods1_Pessoa_ImportarCSV: array [0..2] of TDSRestParameterMetaData =
+  (
+    (Name: 'ACsv'; Direction: 1; DBXType: 26; TypeName: 'string'),
+    (Name: 'ATamanhoLote'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: ''; Direction: 4; DBXType: 6; TypeName: 'Integer')
+  );
+
+  TServerMethods1_Pessoa_ImportarCSV_Stream: array [0..2] of TDSRestParameterMetaData =
+  (
+    (Name: 'ATamanhoLote'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: 'AStream'; Direction: 1; DBXType: 33; TypeName: 'TStream'),
+    (Name: ''; Direction: 4; DBXType: 6; TypeName: 'Integer')
+  );
+
+  TServerMethods1_updatePessoa_ImportarCSV_Stream: array [0..2] of TDSRestParameterMetaData =
+  (
+    (Name: 'ATamanhoLote'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: 'AStream'; Direction: 1; DBXType: 33; TypeName: 'TStream'),
+    (Name: ''; Direction: 4; DBXType: 6; TypeName: 'Integer')
+  );
+
+  TServerMethods1_acceptPessoa_ImportarCSV_Stream: array [0..2] of TDSRestParameterMetaData =
+  (
+    (Name: 'ATamanhoLote'; Direction: 1; DBXType: 6; TypeName: 'Integer'),
+    (Name: 'AStream'; Direction: 1; DBXType: 33; TypeName: 'TStream'),
+    (Name: ''; Direction: 4; DBXType: 6; TypeName: 'Integer')
+  );
+
+  TServerMethods1_TestarViaCep: array [0..0] of TDSRestParameterMetaData =
+  (
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_ViaCEP_Status: array [0..0] of TDSRestParameterMetaData =
+  (
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_EchoString: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'Value'; Direction: 1; DBXType: 26; TypeName: 'string'),
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_ReverseString: array [0..1] of TDSRestParameterMetaData =
+  (
+    (Name: 'Value'; Direction: 1; DBXType: 26; TypeName: 'string'),
+    (Name: ''; Direction: 4; DBXType: 26; TypeName: 'string')
+  );
+
+  TServerMethods1_DispararCepEstaEmExecucao: array [0..0] of TDSRestParameterMetaData =
+  (
+    (Name: ''; Direction: 4; DBXType: 4; TypeName: 'Boolean')
+  );
+
+implementation
+
+function TServerMethods1Client.Status(const ARequestFilter: string): string;
+begin
+  if FStatusCommand = nil then
+  begin
+    FStatusCommand := FConnection.CreateCommand;
+    FStatusCommand.RequestType := 'GET';
+    FStatusCommand.Text := 'TServerMethods1.Status';
+    FStatusCommand.Prepare(TServerMethods1_Status);
+  end;
+  FStatusCommand.Execute(ARequestFilter);
+  Result := FStatusCommand.Parameters[0].Value.GetWideString;
+end;
+
+function TServerMethods1Client.Pessoa_List(APagina: Integer; ATamanho: Integer; const ARequestFilter: string): string;
+begin
+  if FPessoa_ListCommand = nil then
+  begin
+    FPessoa_ListCommand := FConnection.CreateCommand;
+    FPessoa_ListCommand.RequestType := 'GET';
+    FPessoa_ListCommand.Text := 'TServerMethods1.Pessoa_List';
+    FPessoa_ListCommand.Prepare(TServerMethods1_Pessoa_List);
+  end;
+  FPessoa_ListCommand.Parameters[0].Value.SetInt32(APagina);
+  FPessoa_ListCommand.Parameters[1].Value.SetInt32(ATamanho);
+  FPessoa_ListCommand.Execute(ARequestFilter);
+  Result := FPessoa_ListCommand.Parameters[2].Value.GetWideString;
+end;
+
+function TServerMethods1Client.Pessoa_Get(AIdPessoa: Int64; const ARequestFilter: string): string;
+begin
+  if FPessoa_GetCommand = nil then
+  begin
+    FPessoa_GetCommand := FConnection.CreateCommand;
+    FPessoa_GetCommand.RequestType := 'GET';
+    FPessoa_GetCommand.Text := 'TServerMethods1.Pessoa_Get';
+    FPessoa_GetCommand.Prepare(TServerMethods1_Pessoa_Get);
+  end;
+  FPessoa_GetCommand.Parameters[0].Value.SetInt64(AIdPessoa);
+  FPessoa_GetCommand.Execute(ARequestFilter);
+  Result := FPessoa_GetCommand.Parameters[1].Value.GetWideString;
+end;
+
+function TServerMethods1Client.Pessoa_Create(AJsonPessoa: string; const ARequestFilter: string): Int64;
+begin
+  if FPessoa_CreateCommand = nil then
+  begin
+    FPessoa_CreateCommand := FConnection.CreateCommand;
+    FPessoa_CreateCommand.RequestType := 'GET';
+    FPessoa_CreateCommand.Text := 'TServerMethods1.Pessoa_Create';
+    FPessoa_CreateCommand.Prepare(TServerMethods1_Pessoa_Create);
+  end;
+  FPessoa_CreateCommand.Parameters[0].Value.SetWideString(AJsonPessoa);
+  FPessoa_CreateCommand.Execute(ARequestFilter);
+  Result := FPessoa_CreateCommand.Parameters[1].Value.GetInt64;
+end;
+
+function TServerMethods1Client.Pessoa_Update(AJsonPessoa: string; const ARequestFilter: string): Boolean;
+begin
+  if FPessoa_UpdateCommand = nil then
+  begin
+    FPessoa_UpdateCommand := FConnection.CreateCommand;
+    FPessoa_UpdateCommand.RequestType := 'GET';
+    FPessoa_UpdateCommand.Text := 'TServerMethods1.Pessoa_Update';
+    FPessoa_UpdateCommand.Prepare(TServerMethods1_Pessoa_Update);
+  end;
+  FPessoa_UpdateCommand.Parameters[0].Value.SetWideString(AJsonPessoa);
+  FPessoa_UpdateCommand.Execute(ARequestFilter);
+  Result := FPessoa_UpdateCommand.Parameters[1].Value.GetBoolean;
+end;
+
+function TServerMethods1Client.Pessoa_Delete(AIdPessoa: Int64; const ARequestFilter: string): Boolean;
+begin
+  if FPessoa_DeleteCommand = nil then
+  begin
+    FPessoa_DeleteCommand := FConnection.CreateCommand;
+    FPessoa_DeleteCommand.RequestType := 'GET';
+    FPessoa_DeleteCommand.Text := 'TServerMethods1.Pessoa_Delete';
+    FPessoa_DeleteCommand.Prepare(TServerMethods1_Pessoa_Delete);
+  end;
+  FPessoa_DeleteCommand.Parameters[0].Value.SetInt64(AIdPessoa);
+  FPessoa_DeleteCommand.Execute(ARequestFilter);
+  Result := FPessoa_DeleteCommand.Parameters[1].Value.GetBoolean;
+end;
+
+function TServerMethods1Client.Pessoa_Count(const ARequestFilter: string): Integer;
+begin
+  if FPessoa_CountCommand = nil then
+  begin
+    FPessoa_CountCommand := FConnection.CreateCommand;
+    FPessoa_CountCommand.RequestType := 'GET';
+    FPessoa_CountCommand.Text := 'TServerMethods1.Pessoa_Count';
+    FPessoa_CountCommand.Prepare(TServerMethods1_Pessoa_Count);
+  end;
+  FPessoa_CountCommand.Execute(ARequestFilter);
+  Result := FPessoa_CountCommand.Parameters[0].Value.GetInt32;
+end;
+
+function TServerMethods1Client.Pessoa_ImportarCSV(ACsv: string; ATamanhoLote: Integer; const ARequestFilter: string): Integer;
+begin
+  if FPessoa_ImportarCSVCommand = nil then
+  begin
+    FPessoa_ImportarCSVCommand := FConnection.CreateCommand;
+    FPessoa_ImportarCSVCommand.RequestType := 'GET';
+    FPessoa_ImportarCSVCommand.Text := 'TServerMethods1.Pessoa_ImportarCSV';
+    FPessoa_ImportarCSVCommand.Prepare(TServerMethods1_Pessoa_ImportarCSV);
+  end;
+  FPessoa_ImportarCSVCommand.Parameters[0].Value.SetWideString(ACsv);
+  FPessoa_ImportarCSVCommand.Parameters[1].Value.SetInt32(ATamanhoLote);
+  FPessoa_ImportarCSVCommand.Execute(ARequestFilter);
+  Result := FPessoa_ImportarCSVCommand.Parameters[2].Value.GetInt32;
+end;
+
+function TServerMethods1Client.Pessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string): Integer;
+begin
+  if FPessoa_ImportarCSV_StreamCommand = nil then
+  begin
+    FPessoa_ImportarCSV_StreamCommand := FConnection.CreateCommand;
+    FPessoa_ImportarCSV_StreamCommand.RequestType := 'POST';
+    FPessoa_ImportarCSV_StreamCommand.Text := 'TServerMethods1."Pessoa_ImportarCSV_Stream"';
+    FPessoa_ImportarCSV_StreamCommand.Prepare(TServerMethods1_Pessoa_ImportarCSV_Stream);
+  end;
+  FPessoa_ImportarCSV_StreamCommand.Parameters[0].Value.SetInt32(ATamanhoLote);
+  FPessoa_ImportarCSV_StreamCommand.Parameters[1].Value.SetStream(AStream, FInstanceOwner);
+  FPessoa_ImportarCSV_StreamCommand.Execute(ARequestFilter);
+  Result := FPessoa_ImportarCSV_StreamCommand.Parameters[2].Value.GetInt32;
+end;
+
+function TServerMethods1Client.updatePessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string): Integer;
+begin
+  if FupdatePessoa_ImportarCSV_StreamCommand = nil then
+  begin
+    FupdatePessoa_ImportarCSV_StreamCommand := FConnection.CreateCommand;
+    FupdatePessoa_ImportarCSV_StreamCommand.RequestType := 'POST';
+    FupdatePessoa_ImportarCSV_StreamCommand.Text := 'TServerMethods1."updatePessoa_ImportarCSV_Stream"';
+    FupdatePessoa_ImportarCSV_StreamCommand.Prepare(TServerMethods1_updatePessoa_ImportarCSV_Stream);
+  end;
+  FupdatePessoa_ImportarCSV_StreamCommand.Parameters[0].Value.SetInt32(ATamanhoLote);
+  FupdatePessoa_ImportarCSV_StreamCommand.Parameters[1].Value.SetStream(AStream, FInstanceOwner);
+  FupdatePessoa_ImportarCSV_StreamCommand.Execute(ARequestFilter);
+  Result := FupdatePessoa_ImportarCSV_StreamCommand.Parameters[2].Value.GetInt32;
+end;
+
+function TServerMethods1Client.acceptPessoa_ImportarCSV_Stream(ATamanhoLote: Integer; AStream: TStream; const ARequestFilter: string): Integer;
+begin
+  if FacceptPessoa_ImportarCSV_StreamCommand = nil then
+  begin
+    FacceptPessoa_ImportarCSV_StreamCommand := FConnection.CreateCommand;
+    FacceptPessoa_ImportarCSV_StreamCommand.RequestType := 'POST';
+    FacceptPessoa_ImportarCSV_StreamCommand.Text := 'TServerMethods1."acceptPessoa_ImportarCSV_Stream"';
+    FacceptPessoa_ImportarCSV_StreamCommand.Prepare(TServerMethods1_acceptPessoa_ImportarCSV_Stream);
+  end;
+  FacceptPessoa_ImportarCSV_StreamCommand.Parameters[0].Value.SetInt32(ATamanhoLote);
+  FacceptPessoa_ImportarCSV_StreamCommand.Parameters[1].Value.SetStream(AStream, FInstanceOwner);
+  FacceptPessoa_ImportarCSV_StreamCommand.Execute(ARequestFilter);
+  Result := FacceptPessoa_ImportarCSV_StreamCommand.Parameters[2].Value.GetInt32;
+end;
+
+function TServerMethods1Client.TestarViaCep(const ARequestFilter: string): string;
+begin
+  if FTestarViaCepCommand = nil then
+  begin
+    FTestarViaCepCommand := FConnection.CreateCommand;
+    FTestarViaCepCommand.RequestType := 'GET';
+    FTestarViaCepCommand.Text := 'TServerMethods1.TestarViaCep';
+    FTestarViaCepCommand.Prepare(TServerMethods1_TestarViaCep);
+  end;
+  FTestarViaCepCommand.Execute(ARequestFilter);
+  Result := FTestarViaCepCommand.Parameters[0].Value.GetWideString;
+end;
+
+procedure TServerMethods1Client.ViaCEP_Disparar;
+begin
+  if FViaCEP_DispararCommand = nil then
+  begin
+    FViaCEP_DispararCommand := FConnection.CreateCommand;
+    FViaCEP_DispararCommand.RequestType := 'GET';
+    FViaCEP_DispararCommand.Text := 'TServerMethods1.ViaCEP_Disparar';
+  end;
+  FViaCEP_DispararCommand.Execute;
+end;
+
+function TServerMethods1Client.ViaCEP_Status(const ARequestFilter: string): string;
+begin
+  if FViaCEP_StatusCommand = nil then
+  begin
+    FViaCEP_StatusCommand := FConnection.CreateCommand;
+    FViaCEP_StatusCommand.RequestType := 'GET';
+    FViaCEP_StatusCommand.Text := 'TServerMethods1.ViaCEP_Status';
+    FViaCEP_StatusCommand.Prepare(TServerMethods1_ViaCEP_Status);
+  end;
+  FViaCEP_StatusCommand.Execute(ARequestFilter);
+  Result := FViaCEP_StatusCommand.Parameters[0].Value.GetWideString;
+end;
+
+function TServerMethods1Client.EchoString(Value: string; const ARequestFilter: string): string;
+begin
+  if FEchoStringCommand = nil then
+  begin
+    FEchoStringCommand := FConnection.CreateCommand;
+    FEchoStringCommand.RequestType := 'GET';
+    FEchoStringCommand.Text := 'TServerMethods1.EchoString';
+    FEchoStringCommand.Prepare(TServerMethods1_EchoString);
+  end;
+  FEchoStringCommand.Parameters[0].Value.SetWideString(Value);
+  FEchoStringCommand.Execute(ARequestFilter);
+  Result := FEchoStringCommand.Parameters[1].Value.GetWideString;
+end;
+
+function TServerMethods1Client.DispararCepEstaEmExecucao: Boolean;
+begin
+  if FDispararCepEstaEmExecucaoCommand = nil then
+  begin
+    FDispararCepEstaEmExecucaoCommand := FConnection.CreateCommand;
+    FDispararCepEstaEmExecucaoCommand.RequestType := 'GET';
+    FDispararCepEstaEmExecucaoCommand.Text := 'TServerMethods1.DispararCepEstaEmExecucao';
+    FDispararCepEstaEmExecucaoCommand.Prepare(TServerMethods1_DispararCepEstaEmExecucao);
+  end;
+  FDispararCepEstaEmExecucaoCommand.Execute;
+  Result := FDispararCepEstaEmExecucaoCommand.Parameters[0].Value.GetBoolean;
+end;
+
+function TServerMethods1Client.ReverseString(Value: string; const ARequestFilter: string): string;
+begin
+  if FReverseStringCommand = nil then
+  begin
+    FReverseStringCommand := FConnection.CreateCommand;
+    FReverseStringCommand.RequestType := 'GET';
+    FReverseStringCommand.Text := 'TServerMethods1.ReverseString';
+    FReverseStringCommand.Prepare(TServerMethods1_ReverseString);
+  end;
+  FReverseStringCommand.Parameters[0].Value.SetWideString(Value);
+  FReverseStringCommand.Execute(ARequestFilter);
+  Result := FReverseStringCommand.Parameters[1].Value.GetWideString;
+end;
+
+constructor TServerMethods1Client.Create(ARestConnection: TDSRestConnection);
+begin
+  inherited Create(ARestConnection);
+end;
+
+constructor TServerMethods1Client.Create(ARestConnection: TDSRestConnection; AInstanceOwner: Boolean);
+begin
+  inherited Create(ARestConnection, AInstanceOwner);
+end;
+
+destructor TServerMethods1Client.Destroy;
+begin
+  FStatusCommand.Free;
+  FPessoa_ListCommand.Free;
+  FPessoa_GetCommand.Free;
+  FPessoa_CreateCommand.Free;
+  FPessoa_UpdateCommand.Free;
+  FPessoa_DeleteCommand.Free;
+  FPessoa_CountCommand.Free;
+  FPessoa_ImportarCSVCommand.Free;
+  FPessoa_ImportarCSV_StreamCommand.Free;
+  FupdatePessoa_ImportarCSV_StreamCommand.Free;
+  FacceptPessoa_ImportarCSV_StreamCommand.Free;
+  FTestarViaCepCommand.Free;
+  FViaCEP_DispararCommand.Free;
+  FViaCEP_StatusCommand.Free;
+  FEchoStringCommand.Free;
+  FReverseStringCommand.Free;
+  FDispararCepEstaEmExecucaoCommand.Free;
+  inherited;
+end;
+
+end.

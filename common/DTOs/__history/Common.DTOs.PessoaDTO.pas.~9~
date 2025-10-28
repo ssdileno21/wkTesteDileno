@@ -1,0 +1,161 @@
+unit Common.DTOs.PessoaDTO;
+
+interface
+
+uses
+  System.SysUtils,
+  System.Generics.Collections,
+  Common.DTOs.EnderecoDTO
+  {$IFDEF SERVER}, Domain.Entities.Pessoa, Domain.Entities.Endereco{$ENDIF};
+
+type
+  TPessoaDTO = class
+  private
+    FIdpessoa : Int64;
+    FFlnatureza : SmallInt;
+    FDsdocumento : string;
+    FNmprimeiro : string;
+    FNmsegundo : string;
+    FDtregistro : string;
+    FEnderecos : TList<TEnderecoDTO>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    property IdPessoa : Int64    read FIdPessoa    write FIdPessoa;
+    property FlNatureza : SmallInt read FFlNatureza  write FFlNatureza;
+    property DsDocumento : string   read FDsDocumento write FDsDocumento;
+    property NmPrimeiro : string   read FNmPrimeiro  write FNmPrimeiro;
+    property NmSegundo : string   read FNmSegundo   write FNmSegundo;
+    property DtRegistro : string   read FDtRegistro  write FDtRegistro;
+    property Enderecos : TList<TEnderecoDTO> read FEnderecos;
+
+    {$IFDEF SERVER}
+    function ToEntity : TPessoa;
+    class function FromEntity(const APessoa: TPessoa): TPessoaDTO; static;
+    class function TryParseDate(const AValue: string; out ADate: TDateTime): Boolean; static;
+    class function DateToStringSafe(const ADate: TDateTime): string; static;
+    {$ENDIF}
+  end;
+
+implementation
+
+uses
+  System.DateUtils;
+
+{ TPessoaDTO }
+
+constructor TPessoaDTO.Create;
+begin
+  FEnderecos := TList<TEnderecoDTO>.Create;
+end;
+
+destructor TPessoaDTO.Destroy;
+var
+  LItem : TEnderecoDTO;
+begin
+  for LItem in FEnderecos do
+    LItem.Free;
+  FEnderecos.Free;
+  inherited;
+end;
+
+{$IFDEF SERVER}
+function TPessoaDTO.ToEntity: TPessoa;
+var
+  i : Integer;
+  LEnd : TEndereco;
+  LDT : TDateTime;
+begin
+  Result := TPessoa.Create;
+
+  Result.IdPessoa    := IdPessoa;
+  Result.FlNatureza  := FlNatureza;
+  Result.DsDocumento := DsDocumento;
+  Result.NmPrimeiro  := NmPrimeiro;
+  Result.NmSegundo   := NmSegundo;
+
+  if Trim(DtRegistro) = '' then
+    LDT := 0
+  else
+    LDT := StrToDateDef(DtRegistro, 0);
+  Result.DtRegistro := LDT;
+
+  for i := 0 to FEnderecos.Count - 1 do
+  begin
+    LEnd := TEndereco.Create;
+    LEnd.IdEndereco := FEnderecos[i].IdEndereco;
+    LEnd.DsCep      := FEnderecos[i].DsCep;
+    Result.Enderecos.Add(LEnd);
+  end;
+end;
+
+class function TPessoaDTO.TryParseDate(const AValue: string; out ADate: TDateTime): Boolean;
+begin
+  Result := False;
+  ADate  := 0;
+  if AValue.Trim = '' then
+    Exit(True);
+
+  if TryISO8601ToDate(AValue, ADate, False) then
+    Exit(True);
+
+  if TryStrToDate(AValue, ADate) then
+    Exit(True);
+
+  try
+    if Length(AValue) = 10 then
+    begin
+      ADate := EncodeDate(
+        StrToInt(Copy(AValue,1,4)),
+        StrToInt(Copy(AValue,6,2)),
+        StrToInt(Copy(AValue,9,2))
+      );
+      Exit(True);
+    end;
+  except
+
+  end;
+end;
+
+class function TPessoaDTO.FromEntity(const APessoa: TPessoa): TPessoaDTO;
+var
+  LPessoaDto   : TPessoaDTO;
+  LEndereco    : TEndereco;
+  LEnderecoDto : TEnderecoDTO;
+begin
+  LPessoaDto := TPessoaDTO.Create;
+
+  LPessoaDto.IdPessoa    := APessoa.IdPessoa;
+  LPessoaDto.FlNatureza  := APessoa.FlNatureza;
+  LPessoaDto.DsDocumento := APessoa.DsDocumento;
+  LPessoaDto.NmPrimeiro  := APessoa.NmPrimeiro;
+  LPessoaDto.NmSegundo   := APessoa.NmSegundo;
+
+  if APessoa.DtRegistro = 0 then
+    LPessoaDto.DtRegistro := ''
+  else
+    LPessoaDto.DtRegistro := DateToISO8601(APessoa.DtRegistro, False);
+
+  for LEndereco in APessoa.Enderecos do
+  begin
+    LEnderecoDto := TEnderecoDTO.Create;
+    LEnderecoDto.IdEndereco := LEndereco.IdEndereco;
+    LEnderecoDto.DsCep      := LEndereco.DsCep;
+    LPessoaDto.Enderecos.Add(LEnderecoDto);
+  end;
+
+  Result := LPessoaDto;
+end;
+
+class function TPessoaDTO.DateToStringSafe(const ADate: TDateTime): string;
+begin
+  if ADate = 0 then
+    Result := ''
+  else
+    Result := FormatDateTime('yyyy-mm-dd', ADate);
+end;
+{$ENDIF}
+
+end.
+

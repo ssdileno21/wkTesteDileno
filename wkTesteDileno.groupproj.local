@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2025/10/23 14:17:28.000.371,C:\Users\Dileno\OneDrive\Documentos\Embarcadero\Studio\Projects\ProjectGroup1.groupproj=C:\projetos\wkTesteDileno\server\wkTesteDileno.groupproj</Transaction>
+    <Transaction>2025/10/23 14:21:26.000.811,C:\projetos\wkTesteDileno\server\wkTesteDileno.groupproj=C:\projetos\wkTesteDileno\wkTesteDileno.groupproj</Transaction>
+  </Transactions>
+	<Default.Personality>
+		<Projects ActiveProject="C:\projetos\wkTesteDileno\client\client.dproj"/>
+	</Default.Personality>
+</BorlandProject>

@@ -1,0 +1,110 @@
+unit Controllers.PessoaController;
+
+interface
+
+uses
+  System.SysUtils, System.Generics.Collections, Infra.Api.PessoaApi,
+  Common.DTOs.PessoaDTO;
+
+type
+  TPessoaController = class
+  private
+    FPessoaApi: TPessoaApi;
+  public
+    constructor Create(const ABaseUrl: string);
+    destructor Destroy; override;
+
+    function Listar(const APagina, ATamanho: Integer): TObjectList<TPessoaDTO>;
+    function ObterPorId(const AIdPessoa: Int64): TPessoaDTO;
+    function Criar(const APessoaDto: TPessoaDTO): Int64;
+    function Atualizar(const APessoaDto: TPessoaDTO): Boolean;
+    function Remover(const AIdPessoa: Int64): Boolean;
+    function Contar: Integer;
+
+    function ImportarCSV(
+      const ACsvConteudo: string;
+      const ATamanhoLote: Integer
+    ): Integer;
+    function ImportarCSV_Stream(
+      const AFileName: string;
+      const ATamanhoLote: Integer
+    ): Integer;
+
+    procedure DispararViaCEP;
+    function StatusViaCEP: string;
+
+    property Api: TPessoaApi read FPessoaApi;
+  end;
+
+implementation
+
+{ TPessoaController }
+
+uses ClientModuleUnit1;
+
+function TPessoaController.Atualizar(const APessoaDto: TPessoaDTO): Boolean;
+begin
+  Result := FPessoaApi.Atualizar(APessoaDto);
+end;
+
+function TPessoaController.Contar: Integer;
+begin
+  Result := FPessoaApi.Contar;
+end;
+
+constructor TPessoaController.Create(const ABaseUrl: string);
+begin
+  inherited Create;
+  FPessoaApi := TPessoaApi.Create(ABaseUrl);
+end;
+
+function TPessoaController.Criar(const APessoaDto: TPessoaDTO): Int64;
+begin
+  Result := FPessoaApi.Criar(APessoaDto);
+end;
+
+destructor TPessoaController.Destroy;
+begin
+  FPessoaApi.Free;
+  inherited;
+end;
+
+procedure TPessoaController.DispararViaCEP;
+begin
+  ClientModule1.ServerMethods1Client.ViaCEP_Disparar;
+end;
+
+function TPessoaController.ImportarCSV(const ACsvConteudo: string;
+  const ATamanhoLote: Integer): Integer;
+begin
+  Result := FPessoaApi.ImportarCSV(ACsvConteudo, ATamanhoLote);
+end;
+
+function TPessoaController.ImportarCSV_Stream(const AFileName: string;
+  const ATamanhoLote: Integer): Integer;
+begin
+  Result := FPessoaApi.ImportarCSV_Stream(AFileName, ATamanhoLote);
+end;
+
+function TPessoaController.Listar(const APagina,
+  ATamanho: Integer): TObjectList<TPessoaDTO>;
+begin
+  Result := FPessoaApi.Listar(APagina, ATamanho);
+end;
+
+function TPessoaController.ObterPorId(const AIdPessoa: Int64): TPessoaDTO;
+begin
+  Result := FPessoaApi.ObterPorId(AIdPessoa);
+end;
+
+function TPessoaController.Remover(const AIdPessoa: Int64): Boolean;
+begin
+  Result := FPessoaApi.Remover(AIdPessoa);
+end;
+
+function TPessoaController.StatusViaCEP: string;
+begin
+  Result := FPessoaApi.StatusViaCEP;
+end;
+
+end.
